@@ -1,0 +1,32 @@
+{
+  "name": "kuran",
+  "private": true,
+  "version": "0.1.0",
+  "description": "KURAÑ — Gestion de parc de compteurs Woyofal",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "lucide-react": "^1.27.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "recharts": "^3.10.1",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.4",
+    "tailwindcss": "^4.1.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^3.2.0"
+  }
+}
