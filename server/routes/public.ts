@@ -5,8 +5,12 @@
  */
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, eq, inArray } from "drizzle-orm";
-import { compteurs, lots, occupants, organisations, paiementsEnLigne, quotesParts, recharges, sites } from "../db/schema.js";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { alertes, compteurLots, compteurs, lots, occupants, organisations, paiementsEnLigne, paiementsOccupant, quotesParts, recharges, sites, smsEntrants, utilisateurs } from "../db/schema.js";
+import { desc } from "drizzle-orm";
+import { notifier } from "../lib/notifications.js";
+import { auditer } from "../lib/audit.js";
+import { uid, urlPublique } from "../lib/util.js";
 import type { Vars } from "../lib/auth.js";
 import { genererQuittancePdf, verifierSignature } from "../lib/quittance-pdf.js";
 import { confirmerPaiement, creerPaiement, modeSimulation, moyensDisponibles, nouveauNumeroSimulation, signer, traiterWebhookOrange, traiterWebhookWave, verifier, verifierAupresFournisseur, verifierSignatureWave } from "../lib/paiement.js";
@@ -29,6 +33,7 @@ r.get("/quittances/:numero/pdf", async (c) => {
 });
 
 // ---------- Espace occupant : ce que je dois, payer ----------
+/** Portail occupant (Lot 3, EF-OCC-09) : ce que je dois, mon historique, les recharges de mon lot, mes préférences. */
 r.get("/public/occupants/:id", async (c) => {
   const id = c.req.param("id");
   if (!verifier(`occupant:${id}`, c.req.query("t"))) return c.json({ erreur: "Lien invalide" }, 403);
@@ -38,18 +43,78 @@ r.get("/public/occupants/:id", async (c) => {
   const [org] = await db.select({ nom: organisations.nom, contact: organisations.contact }).from(organisations).where(eq(organisations.id, o.organisationId));
   const [lot] = await db.select().from(lots).where(eq(lots.id, o.lotId));
   const [site] = await db.select({ nom: sites.nom }).from(sites).where(eq(sites.id, lot.siteId));
-  const dues = await db.select({ q: quotesParts, date: recharges.date, montantRecharge: recharges.montant, compteur: compteurs.libelle, numero: compteurs.numero })
+  const toutes = await db.select({ q: quotesParts, date: recharges.date, montantRecharge: recharges.montant, kwh: recharges.kwh, compteur: compteurs.libelle, numero: compteurs.numero })
     .from(quotesParts).innerJoin(recharges, eq(recharges.id, quotesParts.rechargeId)).innerJoin(compteurs, eq(compteurs.id, recharges.compteurId))
-    .where(and(eq(quotesParts.occupantId, o.id), eq(quotesParts.statut, "due")));
+    .where(eq(quotesParts.occupantId, o.id)).orderBy(desc(recharges.date)).limit(200);
+  const dues = toutes.filter((x) => x.q.statut === "due");
+  const paiements = await db.select().from(paiementsOccupant).where(eq(paiementsOccupant.occupantId, o.id)).orderBy(desc(paiementsOccupant.date)).limit(50);
   const enCours = await db.select().from(paiementsEnLigne).where(and(eq(paiementsEnLigne.occupantId, o.id), eq(paiementsEnLigne.statut, "en_attente")));
+  // Compteurs desservant mon lot, avec leurs dernières recharges (transparence sur le compteur partagé)
+  const mesCompteurs = await db.select({ c: compteurs }).from(compteurLots).innerJoin(compteurs, eq(compteurs.id, compteurLots.compteurId)).where(eq(compteurLots.lotId, o.lotId));
+  const ids = mesCompteurs.map((x) => x.c.id);
+  const dernieres = ids.length ? await db.select().from(recharges).where(and(inArray(recharges.compteurId, ids), eq(recharges.statut, "valide"))).orderBy(desc(recharges.date)).limit(30) : [];
+  const declarations = await db.select().from(smsEntrants).where(and(eq(smsEntrants.organisationId, o.organisationId), eq(smsEntrants.expediteur, `occupant:${o.id}`))).orderBy(desc(smsEntrants.recuLe)).limit(10);
+  const ligne = (x: (typeof toutes)[number]) => ({ id: x.q.id, montant: x.q.montant, statut: x.q.statut, date: x.date, montantRecharge: x.montantRecharge, kwh: Number(x.kwh), compteur: x.compteur ?? x.numero, datePaiement: x.q.datePaiement, moyen: x.q.moyenPaiement, quittanceNumero: x.q.quittanceNumero });
   return c.json({
-    occupant: { nom: o.nom, lot: lot.reference, site: site.nom },
+    occupant: { nom: o.nom, lot: lot.reference, site: site.nom, dateEntree: o.dateEntree, dateSortie: o.dateSortie, caution: o.caution, consentementNotifications: o.consentementNotifications },
     organisation: org,
-    dues: dues.map((x) => ({ id: x.q.id, montant: x.q.montant, date: x.date, montantRecharge: x.montantRecharge, compteur: x.compteur ?? x.numero })).sort((a, b) => (a.date < b.date ? -1 : 1)),
+    dues: dues.map(ligne).sort((a, b) => (a.date < b.date ? -1 : 1)),
     total: dues.reduce((a, x) => a + x.q.montant, 0),
+    historique: toutes.filter((x) => x.q.statut !== "due").map(ligne),
+    paiements: paiements.map((p) => ({ id: p.id, date: p.date, montant: p.montant, moyen: p.moyen, quittanceNumero: p.quittanceNumero, quittanceUrl: p.quittanceUrl })),
+    compteurs: mesCompteurs.map((x) => ({ id: x.c.id, numero: x.c.numero, libelle: x.c.libelle, partage: x.c.partage, regle: x.c.regleRepartition, recharges: dernieres.filter((r) => r.compteurId === x.c.id).slice(0, 10).map((r) => ({ id: r.id, date: r.date, montant: r.montant, kwh: Number(r.kwh), maPart: toutes.find((t) => t.q.rechargeId === r.id)?.q.montant ?? null })) })),
+    declarations: declarations.map((d) => ({ id: d.id, date: d.recuLe, statut: d.statut, analyse: d.analyse })),
     moyens: moyensDisponibles(),
     paiementEnCours: enCours[0]?.id ?? null,
   });
+});
+
+/** L'occupant déclare une recharge qu'il a faite lui-même sur le compteur partagé : mise en attente de validation par le gestionnaire. */
+r.post("/public/occupants/:id/declarer", async (c) => {
+  const id = c.req.param("id");
+  if (!verifier(`occupant:${id}`, c.req.query("t"))) return c.json({ erreur: "Lien invalide" }, 403);
+  const b = z.object({ montant: z.number().int().min(500), compteurId: z.string().optional(), kwh: z.number().positive().optional(), date: z.string().optional(), texteSms: z.string().max(500).optional(), commentaire: z.string().max(300).optional() }).parse(await c.req.json());
+  const db = c.get("db");
+  const [o] = await db.select().from(occupants).where(eq(occupants.id, id));
+  if (!o) return c.json({ erreur: "Occupant inconnu" }, 404);
+  const mes = await db.select({ c: compteurs }).from(compteurLots).innerJoin(compteurs, eq(compteurs.id, compteurLots.compteurId)).where(eq(compteurLots.lotId, o.lotId));
+  const cpt = mes.find((x) => x.c.id === b.compteurId)?.c ?? (mes.length === 1 ? mes[0].c : null);
+  if (!cpt) return c.json({ erreur: "Précisez le compteur" }, 400);
+  const brut = `Déclaration de ${o.nom} : recharge de ${b.montant.toLocaleString("fr-FR")} F sur le compteur ${cpt.libelle ?? cpt.numero}${b.kwh ? ` (${b.kwh} kWh)` : ""}${b.date ? ` le ${b.date}` : ""}${b.commentaire ? ` — ${b.commentaire}` : ""}${b.texteSms ? `\nSMS : ${b.texteSms}` : ""}`;
+  const smsId = uid();
+  await db.insert(smsEntrants).values({ id: smsId, organisationId: o.organisationId, brut, expediteur: `occupant:${o.id}`, analyse: { montant: b.montant, compteur: cpt.numero, kwh: b.kwh, declaration: true, occupantId: o.id, date: b.date }, statut: "en_attente" });
+  const gest = await db.select().from(utilisateurs).where(and(eq(utilisateurs.organisationId, o.organisationId), eq(utilisateurs.actif, true), sql`${utilisateurs.role} in ('admin', 'gestionnaire') and ${utilisateurs.email} is not null`));
+  for (const u of gest) await notifier(db, { organisationId: o.organisationId, destinataire: u.email!, modele: "declaration_recharge", corps: `Recharge déclarée par un occupant à valider\n${brut}\n\nValider : ${urlPublique()}/recharges`, canal: "email" });
+  await auditer(db, { organisationId: o.organisationId, action: "declaration_occupant", entite: "sms_entrant", entiteId: smsId, apres: { occupant: o.id, montant: b.montant, compteur: cpt.numero } });
+  return c.json({ ok: true, id: smsId, message: "Déclaration transmise à votre gestionnaire pour validation." }, 201);
+});
+
+/** Signalement d'un problème (compteur coupé, contestation, fuite) : alerte visible par le gestionnaire + e-mail. */
+r.post("/public/occupants/:id/signaler", async (c) => {
+  const id = c.req.param("id");
+  if (!verifier(`occupant:${id}`, c.req.query("t"))) return c.json({ erreur: "Lien invalide" }, 403);
+  const { message } = z.object({ message: z.string().min(5).max(500) }).parse(await c.req.json());
+  const db = c.get("db");
+  const [o] = await db.select().from(occupants).where(eq(occupants.id, id));
+  if (!o) return c.json({ erreur: "Occupant inconnu" }, 404);
+  const [lot] = await db.select().from(lots).where(eq(lots.id, o.lotId));
+  const [site] = await db.select().from(sites).where(eq(sites.id, lot.siteId));
+  const cle = `incident-${o.id}-${Date.now()}`;
+  await db.insert(alertes).values({ id: uid(), organisationId: o.organisationId, siteId: site.id, compteurId: null, type: "incident", message: `${site.nom} — ${lot.reference} · ${o.nom} : ${message}`, cle });
+  const gest = await db.select().from(utilisateurs).where(and(eq(utilisateurs.organisationId, o.organisationId), eq(utilisateurs.actif, true), sql`${utilisateurs.role} in ('admin', 'gestionnaire') and ${utilisateurs.email} is not null`));
+  for (const u of gest) await notifier(db, { organisationId: o.organisationId, destinataire: u.email!, modele: "incident", corps: `Signalement d'un occupant\n${site.nom} — ${lot.reference} · ${o.nom} (${o.telephone ?? "sans téléphone"}) : ${message}\n\nVoir : ${urlPublique()}/alertes`, canal: "email" });
+  return c.json({ ok: true, message: "Signalement transmis à votre gestionnaire." }, 201);
+});
+
+r.post("/public/occupants/:id/notifications", async (c) => {
+  const id = c.req.param("id");
+  if (!verifier(`occupant:${id}`, c.req.query("t"))) return c.json({ erreur: "Lien invalide" }, 403);
+  const { consentement } = z.object({ consentement: z.boolean() }).parse(await c.req.json());
+  const db = c.get("db");
+  const [o] = await db.update(occupants).set({ consentementNotifications: consentement, modifieLe: new Date() }).where(eq(occupants.id, id)).returning();
+  if (!o) return c.json({ erreur: "Occupant inconnu" }, 404);
+  await auditer(db, { organisationId: o.organisationId, action: consentement ? "notifications_activees" : "notifications_desactivees", entite: "occupant", entiteId: o.id });
+  return c.json({ ok: true, consentement });
 });
 
 r.post("/public/occupants/:id/payer", async (c) => {

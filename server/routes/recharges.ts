@@ -198,9 +198,22 @@ r.post("/sms-entrants/:id/rattacher", roles(...GESTION), async (c) => {
   const a = sms.analyse as any;
   const montant = b.montant ?? (a.montant ? Math.round(a.montant) : undefined);
   if (!montant) invalide("Montant requis");
-  const res = await creerRecharge(db, { org: c.get("orgId"), user: c.get("user").id, body: { compteurId: b.compteurId, date: sms.recuLe.toISOString(), montant, canal: "sms", operateur: a.operateur, codeRecharge: a.codes?.[0], referencePaiement: a.reference, kwhTicket: a.kwh, smsBrut: sms.brut } });
+  const dateRecharge = a.declaration && a.date && /^\d{4}-\d{2}-\d{2}/.test(a.date) ? `${a.date.slice(0, 10)}T12:00:00+00:00` : sms.recuLe.toISOString();
+  const res = await creerRecharge(db, { org: c.get("orgId"), user: c.get("user").id, body: { compteurId: b.compteurId, date: dateRecharge, montant, canal: a.declaration ? "manuel" : "sms", operateur: a.operateur, codeRecharge: a.codes?.[0], referencePaiement: a.reference, kwhTicket: a.kwh, smsBrut: sms.brut, note: a.declaration ? "Déclarée par l'occupant" : undefined } });
   await db.update(smsEntrants).set({ statut: "rattache", rechargeId: res.recharge.id }).where(eq(smsEntrants.id, sms.id));
-  return c.json(res, 201);
+  // Recharge déclarée par un occupant : il a payé la totalité, sa propre quote-part est donc réglée ;
+  // le surplus (parts des autres) lui est dû par le gérant ou par les autres occupants.
+  let credit: { occupantId: string; montantPaye: number; saPart: number; surplus: number } | null = null;
+  if (a.declaration && a.occupantId) {
+    const part = res.quotesParts.find((q) => q.occupantId === a.occupantId);
+    const [occ] = await db.select().from(occupants).where(eq(occupants.id, a.occupantId));
+    if (part && occ) {
+      const { enregistrerPaiementOccupant } = await import("../lib/recouvrement.js");
+      await enregistrerPaiementOccupant(db, { organisationId: c.get("orgId"), occupant: occ, quotesPartsIds: [part.id], moyen: "recharge_directe", reference: `recharge ${res.recharge.id.slice(0, 8)}`, date: new Date(dateRecharge), utilisateurId: c.get("user").id });
+      credit = { occupantId: occ.id, montantPaye: montant, saPart: part.montant, surplus: montant - part.montant };
+    }
+  }
+  return c.json({ ...res, credit }, 201);
 });
 
 r.post("/sms-entrants/:id/ignorer", roles(...GESTION), async (c) => {

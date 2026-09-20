@@ -494,3 +494,56 @@ describe("régression : un PATCH partiel ne réinitialise pas les champs à vale
     expect(pc.json).toMatchObject({ typeTarif: "PRO", regleRepartition: "surface", statut: "actif", libelle: "Boutique" });
   });
 });
+
+describe("Lot 3 : portail occupant", () => {
+  let occ: string; let t: string;
+  it("historique, compteurs du lot, préférences de notification", async () => {
+    const occs = await api("/occupants", { token: A.token });
+    const moussa = occs.json.find((o: Json) => o.nom === "Moussa Fall"); // toujours en place (Awa est sortie le 30/09)
+    occ = moussa.id;
+    const notifs = await api("/notifications", { token: A.token });
+    const n = notifs.json.find((x: Json) => x.occupantId === occ && x.modele === "quote_part");
+    t = n.corps.match(/\/payer\/[^?]+\?t=([A-Za-z0-9_-]+)/)![1];
+    const p = await api(`/public/occupants/${occ}?t=${t}`);
+    expect(p.status).toBe(200);
+    expect(p.json.historique.length).toBeGreaterThan(0);
+    expect(p.json.paiements.length).toBeGreaterThan(0);
+    expect(p.json.compteurs.length).toBe(1);
+    expect(p.json.compteurs[0].recharges.length).toBeGreaterThan(0);
+    expect(p.json.occupant.consentementNotifications).toBe(true);
+    const off = await api(`/public/occupants/${occ}/notifications?t=${t}`, { body: { consentement: false } });
+    expect(off.json.consentement).toBe(false);
+    expect((await api(`/public/occupants/${occ}?t=${t}`)).json.occupant.consentementNotifications).toBe(false);
+    await api(`/public/occupants/${occ}/notifications?t=${t}`, { body: { consentement: true } });
+  });
+
+  it("déclaration d'une recharge par l'occupant → validation par le gestionnaire → sa part réglée, surplus calculé", async () => {
+    const d = await api(`/public/occupants/${occ}/declarer?t=${t}`, { body: { montant: 9000, kwh: 60, date: "2026-11-02", commentaire: "payé à la boutique" } });
+    expect(d.status).toBe(201);
+    const attente = await api("/sms-entrants", { token: A.token });
+    const decl = attente.json.find((x: Json) => x.id === d.json.id);
+    expect(decl.brut).toContain("Déclaration de Moussa Fall");
+    expect(decl.analyse.declaration).toBe(true);
+    const r = await api(`/sms-entrants/${decl.id}/rattacher`, { token: A.token, body: { compteurId } });
+    expect(r.status).toBe(201);
+    expect(r.json.recharge.montant).toBe(9000);
+    expect(r.json.recharge.date.slice(0, 10)).toBe("2026-11-02");
+    expect(r.json.credit.surplus).toBe(9000 - r.json.credit.saPart);
+    const p = await api(`/public/occupants/${occ}?t=${t}`);
+    expect(p.json.declarations[0].statut).toBe("rattache");
+    // sa quote-part de cette recharge est payée par « recharge_directe »
+    const part = p.json.historique.find((h: Json) => h.montantRecharge === 9000);
+    expect(part.statut).toBe("payee");
+    expect(part.moyen).toBe("recharge_directe");
+    expect((await api(`/public/occupants/${occ}/declarer?t=faux`, { body: { montant: 9000 } })).status).toBe(403);
+  });
+
+  it("signalement d'un problème → alerte incident visible par le gestionnaire", async () => {
+    const s = await api(`/public/occupants/${occ}/signaler?t=${t}`, { body: { message: "Le compteur affiche une erreur et ne prend plus les codes." } });
+    expect(s.status).toBe(201);
+    const al = await api("/alertes", { token: A.token });
+    const inc = al.json.find((a: Json) => a.type === "incident");
+    expect(inc.message).toContain("Moussa Fall");
+    expect((await api(`/public/occupants/${occ}/signaler?t=${t}`, { body: { message: "ok" } })).status).toBe(400);
+  });
+});
