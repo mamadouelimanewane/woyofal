@@ -1,14 +1,15 @@
+/**
+ * Store client : un instantané de l'organisation courante chargé depuis l'API (/api/snapshot),
+ * rafraîchi après chaque mutation. Les sélecteurs en bas de fichier restent purs ;
+ * les actions appellent l'API et remontent les erreurs (ApiError) à l'appelant.
+ */
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type {
   Alerte, Compteur, CompteurLot, GrilleTarifaire, Lot, Occupant, Organisation, QuotePart, Recharge,
   RegleCompteur, RegleRepartition, ReleveSousCompteur, Site, Utilisateur, CanalRecharge,
 } from "../types";
-import { GRILLE_2026, calculerRecharge, clePeriode, grilleEnVigueur } from "../lib/tarif";
-import { repartir } from "../lib/repartition";
-import * as demo from "../data/demo";
-
-const uid = () => Math.random().toString(36).slice(2, 10);
+import { GRILLE_2026, clePeriode, grilleEnVigueur } from "../lib/tarif";
+import { api, ecrireSession, lireSession } from "../api/client";
 
 export interface NouvelleRecharge {
   compteurId: string;
@@ -17,13 +18,18 @@ export interface NouvelleRecharge {
   canal: CanalRecharge;
   codeRecharge?: string;
   referencePaiement?: string;
+  kwhTicket?: number;
   note?: string;
   /** Générer des quotes-parts pour les occupants (auto pour les compteurs partagés). */
   refacturer?: boolean;
 }
 
+export interface ResultatRecharge { recharge: Recharge; quotesParts: QuotePart[]; ecart: { kwhCalcule: number; kwhTicket: number; ecartPct: number } | null }
+
 interface State {
-  version: number;
+  /** "init" au démarrage, "anonyme" sans session, "pret" quand l'instantané est chargé. */
+  etat: "init" | "anonyme" | "chargement" | "pret" | "erreur";
+  erreur: string | null;
   sessionUserId: string | null;
   organisations: Organisation[];
   utilisateurs: Utilisateur[];
@@ -38,154 +44,152 @@ interface State {
   releves: ReleveSousCompteur[];
   grilles: GrilleTarifaire[];
   alertesTraitees: string[];
+  smsEnAttente: number;
 
-  login: (userId: string) => void;
-  logout: () => void;
-  reset: () => void;
+  demarrer: () => Promise<void>;
+  charger: () => Promise<void>;
+  demanderOtp: (telephone: string) => Promise<{ devCode?: string }>;
+  connecterOtp: (telephone: string, code: string) => Promise<void>;
+  connecterEmail: (email: string, motDePasse: string) => Promise<void>;
+  inscrire: (b: { telephone: string; code: string; nom: string; email?: string; motDePasse?: string; organisation: { nom: string; type: "immo" | "entreprise" } }) => Promise<void>;
+  logout: () => Promise<void>;
 
-  addSite: (s: Omit<Site, "id">) => Site;
-  updateSite: (id: string, patch: Partial<Site>) => void;
-  addLot: (l: Omit<Lot, "id">) => Lot;
-  addCompteur: (c: Omit<Compteur, "id">, lotIds?: string[]) => Compteur;
-  updateCompteur: (id: string, patch: Partial<Compteur>) => void;
-  setRattachements: (compteurId: string, lotIds: string[]) => void;
-  setForfait: (compteurId: string, lotId: string, forfait: number) => void;
-  setRegle: (compteurId: string, regle: RegleRepartition) => void;
+  addSite: (s: Omit<Site, "id">) => Promise<Site>;
+  updateSite: (id: string, patch: Partial<Site>) => Promise<void>;
+  addLot: (l: Omit<Lot, "id">) => Promise<Lot>;
+  addCompteur: (c: Omit<Compteur, "id">, lotIds?: string[]) => Promise<Compteur>;
+  updateCompteur: (id: string, patch: Partial<Compteur>) => Promise<void>;
+  setRattachements: (compteurId: string, lotIds: string[]) => Promise<void>;
+  setForfait: (compteurId: string, lotId: string, forfait: number) => Promise<void>;
+  setRegle: (compteurId: string, regle: RegleRepartition) => Promise<void>;
 
-  addOccupant: (o: Omit<Occupant, "id">) => Occupant;
-  sortieOccupant: (id: string, dateSortie: string) => void;
-  addReleve: (r: Omit<ReleveSousCompteur, "id">) => void;
+  addOccupant: (o: Omit<Occupant, "id">) => Promise<Occupant>;
+  sortieOccupant: (id: string, dateSortie: string) => Promise<void>;
+  addReleve: (r: Omit<ReleveSousCompteur, "id">) => Promise<void>;
 
-  addRecharge: (r: NouvelleRecharge) => Recharge;
-  deleteRecharge: (id: string) => void;
-  payerQuotePart: (id: string, moyen: string, date?: string) => void;
-  annulerQuotePart: (id: string) => void;
+  addRecharge: (r: NouvelleRecharge) => Promise<ResultatRecharge>;
+  annulerRecharge: (id: string, motif: string) => Promise<void>;
+  payerQuotePart: (id: string, moyen: string, reference?: string) => Promise<{ quittanceNumero: string }>;
+  annulerQuotePart: (id: string) => Promise<void>;
+  relancer: (occupantIds?: string[]) => Promise<number>;
 
-  addGrille: (g: Omit<GrilleTarifaire, "id">) => void;
-  traiterAlerte: (id: string) => void;
+  traiterAlerte: (id: string) => Promise<void>;
 }
 
-function etatInitial() {
+const vide = {
+  sessionUserId: null as string | null,
+  organisations: [] as Organisation[],
+  utilisateurs: [] as Utilisateur[],
+  sites: [] as Site[],
+  lots: [] as Lot[],
+  compteurs: [] as Compteur[],
+  rattachements: [] as CompteurLot[],
+  regles: [] as RegleCompteur[],
+  occupants: [] as Occupant[],
+  recharges: [] as Recharge[],
+  quotesParts: [] as QuotePart[],
+  releves: [] as ReleveSousCompteur[],
+  grilles: [GRILLE_2026] as GrilleTarifaire[],
+  alertesTraitees: [] as string[],
+  smsEnAttente: 0,
+};
+
+/** Moyen saisi librement → valeur API. */
+function moyenApi(m: string): "especes" | "wave" | "om" | "virement" | "versuspay" {
+  const l = m.toLowerCase();
+  if (l.includes("wave")) return "wave";
+  if (l.includes("orange") || l === "om") return "om";
+  if (l.includes("vire")) return "virement";
+  if (l.includes("versus")) return "versuspay";
+  return "especes";
+}
+
+export const useStore = create<State>()((set, get) => {
+  const apresSession = async (j: { accessToken: string; refreshToken: string }) => {
+    ecrireSession({ accessToken: j.accessToken, refreshToken: j.refreshToken });
+    await get().charger();
+  };
+  const maj = async <T,>(p: Promise<T>): Promise<T> => {
+    const r = await p;
+    await get().charger();
+    return r;
+  };
+
   return {
-    version: 1,
-    sessionUserId: null as string | null,
-    organisations: demo.ORGANISATIONS,
-    utilisateurs: demo.UTILISATEURS,
-    sites: demo.SITES,
-    lots: demo.LOTS,
-    compteurs: demo.COMPTEURS,
-    rattachements: demo.RATTACHEMENTS,
-    regles: demo.REGLES,
-    occupants: demo.OCCUPANTS,
-    recharges: [] as Recharge[],
-    quotesParts: [] as QuotePart[],
-    releves: demo.RELEVES,
-    grilles: [GRILLE_2026],
-    alertesTraitees: [] as string[],
-  };
-}
+    ...vide,
+    etat: "init",
+    erreur: null,
 
-/** Calcule tarif + quotes-parts d'une recharge à partir de l'état courant (pur). */
-function construireRecharge(s: State, n: NouvelleRecharge, saisiPar: string): { recharge: Recharge; parts: QuotePart[] } {
-  const grille = grilleEnVigueur(s.grilles, n.date);
-  const periode = clePeriode(n.date, grille.periode);
-  const memePeriode = s.recharges.filter(
-    (r) => r.compteurId === n.compteurId && clePeriode(r.date, grille.periode) === periode && r.date < n.date,
-  );
-  const detail = calculerRecharge(n.montant, grille, {
-    kwhCumulePeriode: memePeriode.reduce((sum, r) => sum + r.kwh, 0),
-    premiereRechargeDuMois: memePeriode.length === 0,
-  });
-  const recharge: Recharge = {
-    id: uid(), compteurId: n.compteurId, date: n.date, montant: n.montant, canal: n.canal,
-    codeRecharge: n.codeRecharge, referencePaiement: n.referencePaiement, note: n.note, saisiPar, ...detail,
-  };
-
-  const compteur = s.compteurs.find((c) => c.id === n.compteurId);
-  const doitRefacturer = compteur?.partage || n.refacturer;
-  let parts: QuotePart[] = [];
-  if (compteur && doitRefacturer) {
-    const rattachements = s.rattachements.filter((r) => r.compteurId === compteur.id);
-    const regle = s.regles.find((r) => r.compteurId === compteur.id)?.regle ?? "egal";
-    parts = repartir(n.montant, { regle, rattachements, lots: s.lots, occupants: s.occupants, releves: s.releves, dateRecharge: n.date })
-      .filter((p) => p.occupantId)
-      .map((p) => ({ id: uid(), rechargeId: recharge.id, occupantId: p.occupantId!, lotId: p.lotId, montant: p.montant, statut: "due" as const }));
-  }
-  return { recharge, parts };
-}
-
-function seedRecharges(s: State): Pick<State, "recharges" | "quotesParts"> {
-  let recharges: Recharge[] = [];
-  let quotesParts: QuotePart[] = [];
-  for (const d of demo.rechargesDemo()) {
-    const { recharge, parts } = construireRecharge({ ...s, recharges, quotesParts }, { ...d }, "u-agent-immo");
-    recharges = [...recharges, recharge];
-    // Historique démo : les quotes-parts de plus de 45 jours sont payées, les récentes restent dues
-    const anciennes = Date.now() - new Date(recharge.date).getTime() > 45 * 86400000;
-    quotesParts = [...quotesParts, ...parts.map((p) => (anciennes ? { ...p, statut: "payee" as const, datePaiement: recharge.date.slice(0, 10), moyenPaiement: "Wave" } : p))];
-  }
-  return { recharges, quotesParts };
-}
-
-export const useStore = create<State>()(
-  persist(
-    (set, get) => ({
-      ...etatInitial(),
-
-      login: (userId) => set({ sessionUserId: userId }),
-      logout: () => set({ sessionUserId: null }),
-      reset: () => {
-        const base = { ...get(), ...etatInitial() };
-        set({ ...etatInitial(), ...seedRecharges(base as State) });
-      },
-
-      addSite: (s) => { const site = { ...s, id: uid() }; set({ sites: [...get().sites, site] }); return site; },
-      updateSite: (id, patch) => set({ sites: get().sites.map((s) => (s.id === id ? { ...s, ...patch } : s)) }),
-      addLot: (l) => { const lot = { ...l, id: uid() }; set({ lots: [...get().lots, lot] }); return lot; },
-      addCompteur: (c, lotIds = []) => {
-        const compteur = { ...c, id: uid() };
-        set({ compteurs: [...get().compteurs, compteur], rattachements: [...get().rattachements, ...lotIds.map((lotId) => ({ compteurId: compteur.id, lotId }))] });
-        return compteur;
-      },
-      updateCompteur: (id, patch) => set({ compteurs: get().compteurs.map((c) => (c.id === id ? { ...c, ...patch } : c)) }),
-      setRattachements: (compteurId, lotIds) =>
-        set({
-          rattachements: [
-            ...get().rattachements.filter((r) => r.compteurId !== compteurId),
-            ...lotIds.map((lotId) => ({ compteurId, lotId, forfait: get().rattachements.find((r) => r.compteurId === compteurId && r.lotId === lotId)?.forfait })),
-          ],
-          compteurs: get().compteurs.map((c) => (c.id === compteurId ? { ...c, partage: lotIds.length > 1 } : c)),
-        }),
-      setForfait: (compteurId, lotId, forfait) =>
-        set({ rattachements: get().rattachements.map((r) => (r.compteurId === compteurId && r.lotId === lotId ? { ...r, forfait } : r)) }),
-      setRegle: (compteurId, regle) => set({ regles: [...get().regles.filter((r) => r.compteurId !== compteurId), { compteurId, regle }] }),
-
-      addOccupant: (o) => { const occ = { ...o, id: uid() }; set({ occupants: [...get().occupants, occ] }); return occ; },
-      sortieOccupant: (id, dateSortie) => set({ occupants: get().occupants.map((o) => (o.id === id ? { ...o, dateSortie } : o)) }),
-      addReleve: (r) => set({ releves: [...get().releves, { ...r, id: uid() }] }),
-
-      addRecharge: (n) => {
-        const s = get();
-        const { recharge, parts } = construireRecharge(s, n, s.sessionUserId ?? "inconnu");
-        set({ recharges: [...s.recharges, recharge], quotesParts: [...s.quotesParts, ...parts] });
-        return recharge;
-      },
-      deleteRecharge: (id) => set({ recharges: get().recharges.filter((r) => r.id !== id), quotesParts: get().quotesParts.filter((q) => q.rechargeId !== id) }),
-      payerQuotePart: (id, moyen, date = new Date().toISOString().slice(0, 10)) =>
-        set({ quotesParts: get().quotesParts.map((q) => (q.id === id ? { ...q, statut: "payee", moyenPaiement: moyen, datePaiement: date } : q)) }),
-      annulerQuotePart: (id) => set({ quotesParts: get().quotesParts.map((q) => (q.id === id ? { ...q, statut: "annulee" } : q)) }),
-
-      addGrille: (g) => set({ grilles: [...get().grilles, { ...g, id: uid() }] }),
-      traiterAlerte: (id) => set({ alertesTraitees: [...get().alertesTraitees, id] }),
-    }),
-    {
-      name: "kuran-v1",
-      onRehydrateStorage: () => (state) => {
-        if (state && state.recharges.length === 0) state.reset();
-      },
+    demarrer: async () => {
+      if (!lireSession()) return set({ etat: "anonyme" });
+      await get().charger();
     },
-  ),
-);
+
+    charger: async () => {
+      set({ etat: get().etat === "pret" ? "pret" : "chargement" });
+      try {
+        const [me, snap] = await Promise.all([api("/auth/me"), api("/snapshot")]);
+        set({
+          etat: "pret", erreur: null,
+          sessionUserId: me.utilisateur.id,
+          organisations: [snap.organisation],
+          utilisateurs: snap.utilisateurs,
+          sites: snap.sites, lots: snap.lots, compteurs: snap.compteurs, rattachements: snap.rattachements, regles: snap.regles,
+          occupants: snap.occupants, recharges: snap.recharges, quotesParts: snap.quotesParts, releves: snap.releves,
+          grilles: snap.grilles.length ? snap.grilles : [GRILLE_2026], alertesTraitees: snap.alertesTraitees, smsEnAttente: snap.smsEnAttente,
+        });
+      } catch (e: any) {
+        if (e?.status === 401) { ecrireSession(null); set({ ...vide, etat: "anonyme" }); }
+        else set({ etat: "erreur", erreur: e?.message ?? "Erreur de chargement" });
+      }
+    },
+
+    demanderOtp: (telephone) => api("/auth/otp/request", { body: { telephone }, auth: false }),
+    connecterOtp: async (telephone, code) => apresSession(await api("/auth/otp/verify", { body: { telephone, code }, auth: false })),
+    connecterEmail: async (email, motDePasse) => apresSession(await api("/auth/login", { body: { email, motDePasse }, auth: false })),
+    inscrire: async (b) => apresSession(await api("/auth/inscription", { body: b, auth: false })),
+    logout: async () => {
+      const s = lireSession();
+      if (s) api("/auth/logout", { body: { refreshToken: s.refreshToken } }).catch(() => undefined);
+      ecrireSession(null);
+      set({ ...vide, etat: "anonyme" });
+    },
+
+    addSite: ({ organisationId: _o, ...s }) => maj(api("/sites", { body: s })),
+    updateSite: (id, patch) => maj(api(`/sites/${id}`, { method: "PATCH", body: patch })),
+    addLot: (l) => maj(api("/lots", { body: l })),
+    addCompteur: (c, lotIds = []) => maj(api("/compteurs", { body: { ...c, lotIds } })),
+    updateCompteur: (id, patch) => maj(api(`/compteurs/${id}`, { method: "PATCH", body: patch })),
+    setRattachements: (compteurId, lotIds) => {
+      const actuels = get().rattachements.filter((r) => r.compteurId === compteurId);
+      return maj(api(`/compteurs/${compteurId}/rattachements`, { method: "PUT", body: { lots: lotIds.map((lotId) => ({ lotId, forfait: actuels.find((r) => r.lotId === lotId)?.forfait })) } }));
+    },
+    setForfait: (compteurId, lotId, forfait) => {
+      const liste = get().rattachements.filter((r) => r.compteurId === compteurId).map((r) => ({ lotId: r.lotId, forfait: r.lotId === lotId ? forfait : r.forfait }));
+      return maj(api(`/compteurs/${compteurId}/rattachements`, { method: "PUT", body: { lots: liste } }));
+    },
+    setRegle: (compteurId, regle) => maj(api(`/compteurs/${compteurId}/repartition`, { method: "PUT", body: { regle } })),
+
+    addOccupant: (o) => maj(api("/occupants", { body: { ...o, telephone: o.telephone || undefined } })),
+    sortieOccupant: (id, dateSortie) => maj(api(`/occupants/${id}/sortie`, { body: { dateSortie } })),
+    addReleve: (r) => maj(api("/releves", { body: r })),
+
+    addRecharge: (n) => maj(api("/recharges", { body: n })),
+    annulerRecharge: (id, motif) => maj(api(`/recharges/${id}/annuler`, { body: { motif } })),
+    payerQuotePart: (id, moyen, reference) => {
+      const q = get().quotesParts.find((x) => x.id === id);
+      if (!q?.occupantId) return Promise.reject(new Error("Quote-part sans occupant (lot vacant) : rien à encaisser"));
+      return maj(api(`/occupants/${q.occupantId}/paiements`, { body: { quotesPartsIds: [id], moyen: moyenApi(moyen), reference } }));
+    },
+    annulerQuotePart: (id) => maj(api(`/quotes-parts/${id}/annuler`, { body: {} })),
+    relancer: async (occupantIds) => (await maj(api("/relances/envoyer", { body: { occupantIds } }))).relances,
+
+    traiterAlerte: (id) => maj(api(`/alertes/${encodeURIComponent(id)}/traiter`, { body: {} })),
+  };
+});
+
+/** Grille et période courantes (utilisées par les sélecteurs). */
+export { clePeriode, grilleEnVigueur };
 
 // ---------- Sélecteurs (purs, à utiliser dans les composants) ----------
 

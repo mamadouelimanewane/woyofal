@@ -63,7 +63,7 @@ export default function Layout() {
         <div className="mt-auto px-5 py-4 border-t border-slate-800 text-sm">
           <div className="font-medium">{user.nom}</div>
           <div className="text-xs text-slate-400">{ROLE_LIBELLE[user.role]}</div>
-          <button className="mt-2 text-xs text-slate-400 hover:text-white flex items-center gap-1" onClick={() => { s.logout(); nav("/login"); }}><LogOut size={14} /> Changer d'utilisateur</button>
+          <button className="mt-2 text-xs text-slate-400 hover:text-white flex items-center gap-1" onClick={() => { void s.logout(); nav("/"); }}><LogOut size={14} /> Se déconnecter</button>
         </div>
       </aside>
 

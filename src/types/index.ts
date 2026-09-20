@@ -11,7 +11,9 @@ export interface Organisation {
   id: string;
   nom: string;
   type: OrgType;
-  plan: "starter" | "immo" | "entreprise" | "groupe";
+  plan: "gratuit" | "starter" | "immo" | "entreprise" | "groupe";
+  statut?: string;
+  finEssai?: string | null;
   ninea?: string;
 }
 

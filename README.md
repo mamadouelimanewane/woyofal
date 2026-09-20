@@ -1,51 +1,80 @@
 # KURAÑ — Gestion de parc de compteurs Woyofal
 
-SaaS de pilotage de compteurs prépayés Senelec pour bailleurs (édition **Immo**) et entreprises multi-sites (édition **Entreprise**). Cahier des charges : [CDC-KURAN-v1.md](CDC-KURAN-v1.md).
+SaaS de pilotage de compteurs prépayés Senelec pour bailleurs (édition **Immo**) et entreprises multi-sites (édition **Entreprise**).
+Cahiers des charges : [CDC-KURAN-v1.md](CDC-KURAN-v1.md) (vision produit) · [CDC-KURAN-v2-developpement.md](CDC-KURAN-v2-developpement.md) (développement, lots, recette).
 
-## Lancer
+## Lancer en local
 
 ```bash
 npm install
-npm run dev        # http://localhost:5180
-npm test           # moteur tarifaire, répartition, parsing SMS
-npm run build
+npm run db:seed    # jeu de démonstration (PGlite dans .pglite/, aucune installation)
+npm run dev:api    # API Hono → http://localhost:3001/api/sante
+npm run dev        # front Vite → http://localhost:5180 (proxy /api → 3001)
+npm test           # 12 tests moteur tarifaire + 21 tests d'intégration API (PGlite mémoire)
+npm run typecheck  # front + serveur
 ```
 
-## État — MVP v0.1 (18 sept. 2026)
+Connexion démo : **77 123 45 67** (Gérance Keur Gorgui, Immo) ou **78 111 22 33** (Pharmacies Ndiaye & Fils, Entreprise). Sans fournisseur SMS configuré, le code OTP s'affiche à l'écran.
 
-Simulation locale : les données vivent dans `localStorage` (zustand/persist, clé `kuran-v1`). Deux organisations de démonstration avec 6 mois de recharges générées au premier lancement.
+## Architecture (Lot 1 — v0.2)
 
-| Module | État |
+```
+api/index.ts            handler Vercel (hono/vercel)
+server/app.ts           application Hono, montage des routeurs
+server/dev.ts           serveur local (@hono/node-server, port 3001)
+server/db/schema.ts     schéma Drizzle (21 tables, organisation_id partout)
+server/db/index.ts      pilote : Neon (DATABASE_URL) ou PGlite (local / test)
+server/db/seed.ts       démonstration via l'API
+server/lib/auth.ts      OTP, mot de passe, JWT + refresh, RBAC, cloisonnement
+server/lib/tarif-service.ts  grille en base, cumul de période, répartition, parsing SMS
+server/lib/notifications.ts  file WhatsApp → SMS, plage horaire
+server/routes/          auth · parc · recharges · occupants · grille · admin · snapshot
+server/tests/api.test.ts     critères d'acceptation CA-01 → CA-08
+src/lib/tarif.ts        moteur tarifaire pur (partagé client / serveur)
+src/lib/repartition.ts  règles de répartition (partagé)
+src/lib/sms.ts          parsing générique des SMS (repli des patterns en base)
+src/api/client.ts       client HTTP, jetons, rafraîchissement
+src/store/useStore.ts   instantané de l'organisation (/api/snapshot) + actions API
+drizzle/                migrations SQL générées (drizzle-kit)
+```
+
+## Variables d'environnement
+
+Voir [.env.example](.env.example). Sans `DATABASE_URL`, l'API utilise PGlite (fichier `.pglite/`). En production : Neon + `JWT_SECRET` + fournisseur SMS + WhatsApp Business + `CRON_SECRET`.
+
+```bash
+DATABASE_URL=postgres://… npm run db:migrate   # applique ./drizzle sur Neon
+DATABASE_URL=postgres://… npm run db:seed      # (optionnel) démo sur Neon
+```
+
+## Endpoints principaux
+
+| Route | Rôle |
 |---|---|
-| Connexion (choix d'utilisateur, 2 organisations) | ✅ démo |
-| Tableau de bord (KPI, 6 mois, alertes, top sites, dernières recharges) | ✅ |
-| Parc : sites → lots → compteurs, création, rattachement N:N | ✅ |
-| Fiche compteur : cumul période, tranche, conseil T1, historique, règle de répartition | ✅ |
-| Recharge : saisie, **parsing SMS Wave/OM**, aperçu tarif, aperçu répartition | ✅ |
-| Moteur tarifaire versionné (CRSE 2026, redevance, TVA > 250 kWh, taxe communale) | ✅ testé |
-| Répartition : parts égales, m², sous-compteurs, forfait + solde | ✅ testé |
-| Occupants : entrée / sortie avec solde et caution | ✅ |
-| Recouvrement : quotes-parts dues, relance WhatsApp, marquer payée, quittance imprimable | ✅ |
-| Alertes : budget 80/100 %, inactivité adaptative, anomalie (projection pro rata) | ✅ |
-| Grille tarifaire + simulateur | ✅ |
-| Export CSV des recharges | ✅ |
-| OCR ticket, capture SMS automatique (Expo), API Neon, OTP, WhatsApp Business API, recharge groupée | ⏳ V1/V2 |
+| `POST /api/auth/otp/request` · `/verify` · `/inscription` · `/login` · `/refresh` | authentification |
+| `GET /api/snapshot` | tout l'état de l'organisation pour le client |
+| `CRUD /api/sites` · `/lots` · `/compteurs` · `/occupants` · `/utilisateurs` | parc |
+| `PUT /api/compteurs/:id/rattachements` · `/repartition` | compteurs partagés |
+| `POST /api/parc/import` | import JSON (Excel converti côté client), rapport ligne par ligne |
+| `POST /api/recharges` · `/recharges/simuler` · `/recharges/parse` · `/recharges/:id/annuler` | recharges |
+| `POST /api/recharges/sms` (en-tête `X-Api-Key`) | ingestion automatique des SMS |
+| `GET /api/compteurs/:id/mois/:aaaa-mm` | cumul, tranche, conseil |
+| `POST /api/occupants/:id/paiements` · `GET /api/quittances/:numero` · `POST /api/occupants/:id/sortie` | recouvrement |
+| `GET /api/recouvrement` · `POST /api/relances/envoyer` | relances |
+| `GET /api/grille` · `POST /api/grille/simuler` | public |
+| `/api/admin/*` | super-admin : organisations, grille, patterns SMS, stats de parsing |
+| `POST /api/admin/cron/quotidien` | cron Vercel (8 h) : relances J+3/7/15, file de notifications, fin d'essai |
 
-## Structure
+## État
 
-```
-src/lib/tarif.ts        moteur tarifaire (montant ⇄ kWh, tranches, redevance, TVA)
-src/lib/repartition.ts  règles de répartition des compteurs partagés
-src/lib/sms.ts          parsing des SMS de recharge (patterns par opérateur)
-src/store/useStore.ts   état + actions + sélecteurs (à remplacer par services/ API)
-src/data/demo.ts        jeu de démonstration
-src/pages/              Dashboard, Parc, CompteurDetail, Recharges, Occupants, Recouvrement, Alertes, Grille, Parametres
-```
-
-## Passage en production (prévu)
-
-1. Neon PostgreSQL + Vercel Functions : le modèle de données du CDC §4 reprend les types de `src/types`.
-2. `useStore` → couche `services/` (fetch) ; les sélecteurs restent identiques.
-3. Auth OTP SMS, RBAC par organisation.
-4. App Expo « agent » : lecture SMS Android + caméra.
-5. Taux de taxe communale à confirmer sur la grille CRSE avant facturation réelle.
+| Lot 1 (CDC v2) | État |
+|---|---|
+| Auth OTP / e-mail, JWT + refresh, RBAC, journal d'audit | ✅ |
+| Parc, import, compteurs partagés, règles de répartition | ✅ |
+| Recharges (saisie, collage SMS, ingestion SMS par clé, doublons, kWh ticket) | ✅ |
+| Grille versionnée, cumul de période, simulation | ✅ |
+| Quotes-parts, paiements, quittances numérotées, sortie d'occupant | ✅ |
+| Relances (file WhatsApp → SMS), cron quotidien | ✅ (envoi réel dès que les clés sont configurées) |
+| Abonnement : plans, essai 30 j, lecture seule | ✅ base — facturation VersusPay à venir |
+| Quittance PDF, import Excel côté client, page SMS en attente | ⏳ semaine 4–5 |
+| Déploiement Neon + Vercel | ⏳ en attente de la base |

@@ -21,6 +21,7 @@ export default function RechargeForm({ compteurId: initial, onClose }: { compteu
   const [sms, setSms] = useState("");
   const [smsOpen, setSmsOpen] = useState(false);
   const [refacturer, setRefacturer] = useState(false);
+  const [kwhTicket, setKwhTicket] = useState<number | undefined>();
   const [erreur, setErreur] = useState("");
 
   const compteur = compteurs.find((c) => c.id === compteurId);
@@ -52,6 +53,7 @@ export default function RechargeForm({ compteurId: initial, onClose }: { compteu
     if (p.montant) setMontant(p.montant);
     if (p.codes[0]) setCode(p.codes[0]);
     if (p.reference) setRef(p.reference);
+    if (p.kwh) setKwhTicket(p.kwh);
     if (p.compteur) {
       const c = compteurs.find((x) => x.numero === p.compteur);
       if (c) setCompteurId(c.id);
@@ -61,11 +63,19 @@ export default function RechargeForm({ compteurId: initial, onClose }: { compteu
     setSmsOpen(false);
   }
 
-  function valider() {
+  const [occupe, setOccupe] = useState(false);
+  async function valider() {
     if (!compteur) return setErreur("Choisissez un compteur.");
     if (montant < 500) return setErreur("Montant minimum 500 F.");
-    s.addRecharge({ compteurId: compteur.id, date: dateISO, montant, canal, codeRecharge: code || undefined, referencePaiement: ref || undefined, refacturer });
-    onClose();
+    setOccupe(true);
+    try {
+      await s.addRecharge({ compteurId: compteur.id, date: dateISO, montant, canal, codeRecharge: code || undefined, referencePaiement: ref || undefined, kwhTicket: kwhTicket || undefined, refacturer });
+      onClose();
+    } catch (e: any) {
+      setErreur(e?.message ?? "Erreur");
+    } finally {
+      setOccupe(false);
+    }
   }
 
   return (
@@ -170,7 +180,7 @@ export default function RechargeForm({ compteurId: initial, onClose }: { compteu
       </div>
       <div className="flex justify-end gap-2 mt-6">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" onClick={valider}>Enregistrer la recharge</button>
+        <button className="btn-primary" disabled={occupe} onClick={valider}>{occupe ? "Enregistrement…" : "Enregistrer la recharge"}</button>
       </div>
     </Modal>
   );

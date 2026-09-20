@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { Receipt } from "lucide-react";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -15,10 +17,33 @@ import { orgCourante, useStore } from "./store/useStore";
 export default function App() {
   const s = useStore();
   const org = orgCourante(s);
+  useEffect(() => { void s.demarrer(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (s.etat === "init" || s.etat === "chargement") {
+    return (
+      <div className="min-h-full flex items-center justify-center bg-slate-900 text-white">
+        <div className="flex items-center gap-2 text-2xl font-bold animate-pulse"><Receipt className="text-brand-500" /> KURAÑ</div>
+      </div>
+    );
+  }
+  if (s.etat === "erreur") {
+    return (
+      <div className="min-h-full flex items-center justify-center bg-slate-900 text-white p-4">
+        <div className="card p-6 text-slate-800 max-w-md text-center">
+          <div className="font-semibold mb-2">Impossible de charger vos données</div>
+          <p className="text-sm text-slate-600 mb-4">{s.erreur}</p>
+          <div className="flex justify-center gap-2">
+            <button className="btn-primary" onClick={() => s.charger()}>Réessayer</button>
+            <button className="btn-secondary" onClick={() => s.logout()}>Se déconnecter</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!org) return <Routes><Route path="*" element={<Login />} /></Routes>;
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/parc" element={<Parc />} />

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CheckCircle2, FileText, MessageCircle, XCircle } from "lucide-react";
 import { Badge, Card, PageTitle, Stat, fmtDate } from "../components/ui";
 import { moisDe, moisCourant, orgCourante, sitesDeOrg, useStore } from "../store/useStore";
+import { signaler } from "../components/erreur";
 import { fmtF } from "../lib/tarif";
 
 export default function Recouvrement() {
@@ -75,8 +76,8 @@ export default function Recouvrement() {
                   {l.q.statut === "due" ? (
                     <>
                       <button className="btn-ghost p-1.5 text-emerald-700" title="Relancer WhatsApp" onClick={() => relance(l)}><MessageCircle size={16} /></button>
-                      <button className="btn-ghost p-1.5 text-brand-700" title="Marquer payée" onClick={() => { const m = prompt("Moyen de paiement (Wave, Orange Money, espèces) :", "Wave"); if (m) s.payerQuotePart(l.q.id, m); }}><CheckCircle2 size={16} /></button>
-                      <button className="btn-ghost p-1.5 text-slate-400 hover:text-red-600" title="Annuler" onClick={() => confirm("Annuler cette quote-part ?") && s.annulerQuotePart(l.q.id)}><XCircle size={16} /></button>
+                      <button className="btn-ghost p-1.5 text-brand-700" title="Marquer payée" onClick={() => { const m = prompt("Moyen de paiement (Wave, Orange Money, espèces, virement) :", "Wave"); if (m) s.payerQuotePart(l.q.id, m).then((r) => alert(`Paiement enregistré — quittance ${r.quittanceNumero}`), signaler); }}><CheckCircle2 size={16} /></button>
+                      <button className="btn-ghost p-1.5 text-slate-400 hover:text-red-600" title="Annuler" onClick={() => confirm("Annuler cette quote-part ?") && s.annulerQuotePart(l.q.id).catch(signaler)}><XCircle size={16} /></button>
                     </>
                   ) : l.q.statut === "payee" ? (
                     <button className="btn-ghost p-1.5" title="Quittance" onClick={() => quittance(l)}><FileText size={16} /></button>

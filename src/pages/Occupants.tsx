@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LogOut, Plus } from "lucide-react";
 import { Badge, Card, Field, Modal, PageTitle, fmtDate } from "../components/ui";
 import { orgCourante, sitesDeOrg, useStore } from "../store/useStore";
+import { signaler } from "../components/erreur";
 import { fmtF } from "../lib/tarif";
 
 export default function Occupants() {
@@ -70,7 +71,7 @@ function OccupantModal({ onClose }: { onClose: () => void }) {
       </div>
       <div className="flex justify-end gap-2 mt-5">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!f.nom || !f.lotId} onClick={() => { s.addOccupant({ nom: f.nom, telephone: f.telephone, lotId: f.lotId, dateEntree: f.dateEntree, caution: f.caution ? Number(f.caution) : undefined }); onClose(); }}>Créer</button>
+        <button className="btn-primary" disabled={!f.nom || !f.lotId} onClick={() => s.addOccupant({ nom: f.nom, telephone: f.telephone, lotId: f.lotId, dateEntree: f.dateEntree, caution: f.caution ? Number(f.caution) : undefined }).then(onClose, signaler)}>Créer</button>
       </div>
     </Modal>
   );
@@ -94,7 +95,7 @@ function SortieModal({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
       <div className="flex justify-end gap-2 mt-5">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" onClick={() => { s.sortieOccupant(id, date); onClose(); }}>Confirmer la sortie</button>
+        <button className="btn-primary" onClick={() => s.sortieOccupant(id, date).then(onClose, signaler)}>Confirmer la sortie</button>
       </div>
     </Modal>
   );

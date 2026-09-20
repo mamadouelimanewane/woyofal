@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Building2, Plus, Share2, Zap } from "lucide-react";
 import { Badge, Card, Empty, Field, Modal, PageTitle } from "../components/ui";
 import RechargeForm from "../components/RechargeForm";
+import { signaler } from "../components/erreur";
 import { compteursDeSite, cumulPeriode, depenseSiteMois, moisCourant, orgCourante, rechargesDeCompteur, sitesDeOrg, useStore } from "../store/useStore";
 import { fmtF, fmtKwh } from "../lib/tarif";
 import { occupantDuLot } from "../lib/repartition";
@@ -144,10 +145,12 @@ function SiteModal({ onClose }: { onClose: () => void }) {
       </div>
       <div className="flex justify-end gap-2 mt-5">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!f.nom} onClick={() => {
-          const site = s.addSite({ organisationId: org.id, nom: f.nom, type: f.type, adresse: f.adresse, budgetMensuel: f.budgetMensuel ? Number(f.budgetMensuel) : undefined, responsable: f.responsable || undefined, surfaceM2: f.surfaceM2 ? Number(f.surfaceM2) : undefined });
-          if (org.type === "entreprise") s.addLot({ siteId: site.id, reference: "Site" });
-          setParams({ site: site.id }); onClose();
+        <button className="btn-primary" disabled={!f.nom} onClick={async () => {
+          try {
+            const site = await s.addSite({ organisationId: org.id, nom: f.nom, type: f.type, adresse: f.adresse, budgetMensuel: f.budgetMensuel ? Number(f.budgetMensuel) : undefined, responsable: f.responsable || undefined, surfaceM2: f.surfaceM2 ? Number(f.surfaceM2) : undefined });
+            if (org.type === "entreprise") await s.addLot({ siteId: site.id, reference: "Site" });
+            setParams({ site: site.id }); onClose();
+          } catch (e) { signaler(e); }
         }}>Créer</button>
       </div>
     </Modal>
@@ -166,7 +169,7 @@ function LotModal({ siteId, onClose }: { siteId: string; onClose: () => void }) 
       </div>
       <div className="flex justify-end gap-2 mt-5">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!f.reference} onClick={() => { s.addLot({ siteId, reference: f.reference, surfaceM2: f.surfaceM2 ? Number(f.surfaceM2) : undefined, etage: f.etage || undefined }); onClose(); }}>Créer</button>
+        <button className="btn-primary" disabled={!f.reference} onClick={() => s.addLot({ siteId, reference: f.reference, surfaceM2: f.surfaceM2 ? Number(f.surfaceM2) : undefined, etage: f.etage || undefined }).then(onClose, signaler)}>Créer</button>
       </div>
     </Modal>
   );
@@ -201,7 +204,7 @@ function CompteurModal({ siteId, onClose }: { siteId: string; onClose: () => voi
       </div>
       <div className="flex justify-end gap-2 mt-5">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!valide} onClick={() => { s.addCompteur({ siteId, numero: f.numero, libelle: f.libelle || undefined, typeTarif: f.typeTarif, puissanceKva: Number(f.puissance) || undefined, statut: "actif", partage: lotIds.length > 1 }, lotIds); onClose(); }}>Créer</button>
+        <button className="btn-primary" disabled={!valide} onClick={() => s.addCompteur({ siteId, numero: f.numero, libelle: f.libelle || undefined, typeTarif: f.typeTarif, puissanceKva: Number(f.puissance) || undefined, statut: "actif", partage: lotIds.length > 1 }, lotIds).then(onClose, signaler)}>Créer</button>
       </div>
     </Modal>
   );

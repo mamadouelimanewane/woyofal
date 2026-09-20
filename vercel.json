@@ -1,1 +1,7 @@
-{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [{ "path": "/api/admin/cron/quotidien", "schedule": "0 8 * * *" }]
+}

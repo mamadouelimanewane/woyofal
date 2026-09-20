@@ -5,6 +5,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Badge, Card, Field, PageTitle, Stat, fmtDate, fmtMois } from "../components/ui";
 import RechargeForm from "../components/RechargeForm";
 import { cumulPeriode, derniersMois, orgCourante, rechargesDeCompteur, useStore, moisDe } from "../store/useStore";
+import { signaler } from "../components/erreur";
 import { fmtF, fmtKwh, grilleEnVigueur, montantPourKwh, resteAvantTranche } from "../lib/tarif";
 import { LIBELLE_REGLE, occupantDuLot } from "../lib/repartition";
 import type { RegleRepartition } from "../types";
@@ -81,7 +82,7 @@ export default function CompteurDetail() {
               </Field>
               {rattachements.length > 1 && (
                 <Field label="Règle de répartition">
-                  <select className="input" value={regle} onChange={(e) => s.setRegle(c.id, e.target.value as RegleRepartition)}>
+                  <select className="input" value={regle} onChange={(e) => s.setRegle(c.id, e.target.value as RegleRepartition).catch(signaler)}>
                     {(Object.keys(LIBELLE_REGLE) as RegleRepartition[]).map((k) => <option key={k} value={k}>{LIBELLE_REGLE[k]}</option>)}
                   </select>
                 </Field>
@@ -106,7 +107,7 @@ export default function CompteurDetail() {
                   <td className="td"><Badge tone={r.trancheAtteinte === 1 ? "green" : r.trancheAtteinte === 2 ? "amber" : "red"}>T{r.trancheAtteinte}</Badge></td>
                   <td className="td"><Badge tone={r.canal === "sms" ? "teal" : "slate"}>{r.canal}</Badge></td>
                   <td className="td text-xs font-mono text-slate-500">{r.referencePaiement ?? ""}</td>
-                  <td className="td text-right"><button className="btn-ghost p-1 text-slate-400 hover:text-red-600" title="Supprimer" onClick={() => confirm("Supprimer cette recharge et ses quotes-parts ?") && s.deleteRecharge(r.id)}><Trash2 size={14} /></button></td>
+                  <td className="td text-right"><button className="btn-ghost p-1 text-slate-400 hover:text-red-600" title="Annuler" onClick={() => { const m = prompt("Motif d'annulation (les quotes-parts déjà payées sont conservées) :"); if (m) s.annulerRecharge(r.id, m).catch(signaler); }}><Trash2 size={14} /></button></td>
                 </tr>
               ))}
             </tbody>

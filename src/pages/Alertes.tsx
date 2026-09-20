@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
 import { Badge, Card, PageTitle } from "../components/ui";
 import { alertesDeOrg, orgCourante, useStore } from "../store/useStore";
+import { signaler } from "../components/erreur";
 
 const LIBELLE = { budget_80: "Budget 80 %", budget_100: "Budget dépassé", inactif: "Inactivité", anomalie: "Anomalie", redevance: "Redevance" } as const;
 
@@ -17,7 +18,7 @@ export default function Alertes() {
       <Badge tone={a.type === "budget_100" || a.type === "anomalie" ? "red" : a.type === "inactif" ? "amber" : "blue"}>{LIBELLE[a.type]}</Badge>
       <span className="flex-1 text-sm">{a.message}</span>
       {a.compteurId ? <Link to={`/compteur/${a.compteurId}`} className="text-sm text-brand-700">Voir</Link> : <Link to={`/parc?site=${a.siteId}`} className="text-sm text-brand-700">Voir</Link>}
-      {!a.traitee && <button className="btn-ghost p-1.5" title="Marquer traitée" onClick={() => s.traiterAlerte(a.id)}><Check size={16} /></button>}
+      {!a.traitee && <button className="btn-ghost p-1.5" title="Marquer traitée" onClick={() => s.traiterAlerte(a.id).catch(signaler)}><Check size={16} /></button>}
     </li>
   );
 

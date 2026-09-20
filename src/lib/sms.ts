@@ -18,7 +18,8 @@ export interface SmsParse {
 const RX_COMPTEUR = /\b(\d{11})\b/;
 const RX_CODE = /\b(\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4})\b/g;
 const RX_MONTANT = /(\d[\d\s.,]{2,})\s*(?:F\s?CFA|FCFA|XOF|F\b)/i;
-const RX_KWH = /(\d+(?:[.,]\d+)?)\s*kwh/i;
+// « 52.1 kWh » ou « kWh: 52.1 » (Orange Money)
+const RX_KWH = /(\d+(?:[.,]\d+)?)\s*kwh|kwh\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i;
 const RX_REF = /(?:r[ée]f(?:[ée]rence)?|ID|Trans(?:action)?)[\s.:#]*([A-Z0-9-]{6,})/i;
 
 function nombre(s: string): number {
@@ -50,7 +51,7 @@ export function parserSms(texte: string): SmsParse {
     operateur,
     montant: montantM ? nombre(montantM[1]) : undefined,
     compteur,
-    kwh: kwhM ? nombre(kwhM[1]) : undefined,
+    kwh: kwhM ? nombre(kwhM[1] ?? kwhM[2]) : undefined,
     codes,
     reference: refM?.[1],
     brut: texte,
