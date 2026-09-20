@@ -61,13 +61,14 @@ r.use(authentifie, roles());
 // ---------- Organisations ----------
 r.get("/organisations", async (c) => {
   const db = c.get("db");
-  const rows = await db.select({
-    o: organisations,
-    nbCompteurs: sql<number>`(select count(*) from ${compteurs} where ${compteurs.organisationId} = ${organisations.id} and ${compteurs.archiveLe} is null)::int`,
-    nbSites: sql<number>`(select count(*) from ${sites} where ${sites.organisationId} = ${organisations.id} and ${sites.archiveLe} is null)::int`,
-    nbUtilisateurs: sql<number>`(select count(*) from ${utilisateurs} where ${utilisateurs.organisationId} = ${organisations.id})::int`,
-  }).from(organisations).orderBy(desc(organisations.creeLe));
-  return c.json(rows.map((x) => ({ ...x.o, cleApi: undefined, nbCompteurs: x.nbCompteurs, nbSites: x.nbSites, nbUtilisateurs: x.nbUtilisateurs })));
+  const [orgs, nbC, nbS, nbU] = await Promise.all([
+    db.select().from(organisations).orderBy(desc(organisations.creeLe)),
+    db.select({ id: compteurs.organisationId, n: sql<number>`count(*)::int` }).from(compteurs).where(sql`${compteurs.archiveLe} is null`).groupBy(compteurs.organisationId),
+    db.select({ id: sites.organisationId, n: sql<number>`count(*)::int` }).from(sites).where(sql`${sites.archiveLe} is null`).groupBy(sites.organisationId),
+    db.select({ id: utilisateurs.organisationId, n: sql<number>`count(*)::int` }).from(utilisateurs).groupBy(utilisateurs.organisationId),
+  ]);
+  const par = (rows: { id: string | null; n: number }[], id: string) => rows.find((r) => r.id === id)?.n ?? 0;
+  return c.json(orgs.map((o) => ({ ...o, cleApi: undefined, nbCompteurs: par(nbC, o.id), nbSites: par(nbS, o.id), nbUtilisateurs: par(nbU, o.id) })));
 });
 
 r.post("/organisations", async (c) => {

@@ -2,6 +2,7 @@
  * Client API KURAÑ pour l'application agent : jetons en SecureStore, rafraîchissement
  * automatique, URL du serveur modifiable (Profil → Serveur) pour les tests locaux.
  */
+import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -26,13 +27,18 @@ export async function definirUrlServeur(u: string): Promise<void> {
   await AsyncStorage.setItem(CLE_URL, urlCache);
 }
 
+// SecureStore n'existe pas sur le web (version de test dans le navigateur) : repli AsyncStorage/localStorage.
+const secureDisponible = Platform.OS !== "web";
 export async function lireSession(): Promise<Session | null> {
-  const s = await SecureStore.getItemAsync(CLE_SESSION);
+  const s = secureDisponible ? await SecureStore.getItemAsync(CLE_SESSION) : await AsyncStorage.getItem(CLE_SESSION);
   return s ? (JSON.parse(s) as Session) : null;
 }
 export async function ecrireSession(s: Session | null): Promise<void> {
-  if (s) await SecureStore.setItemAsync(CLE_SESSION, JSON.stringify(s));
-  else await SecureStore.deleteItemAsync(CLE_SESSION);
+  if (secureDisponible) {
+    if (s) await SecureStore.setItemAsync(CLE_SESSION, JSON.stringify(s));
+    else await SecureStore.deleteItemAsync(CLE_SESSION);
+  } else if (s) await AsyncStorage.setItem(CLE_SESSION, JSON.stringify(s));
+  else await AsyncStorage.removeItem(CLE_SESSION);
 }
 
 let rafraichissement: Promise<boolean> | null = null;

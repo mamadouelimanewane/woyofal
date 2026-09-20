@@ -26,7 +26,9 @@ r.post("/otp/verify", async (c) => {
   const comptes = await db.select().from(utilisateurs).where(and(eq(utilisateurs.telephone, tel), eq(utilisateurs.actif, true)));
   if (comptes.length === 0) throw new HTTPException(404, { message: "Numéro inconnu : créez une organisation ou demandez une invitation" });
   // Un même numéro peut appartenir à plusieurs organisations : on ouvre la première, la liste est renvoyée.
-  const user = comptes[0];
+  const user = comptes.find((u) => u.role !== "superadmin") ?? comptes[0];
+  // Tant qu'aucun fournisseur SMS n'est configuré, le code s'affiche à l'écran : le super-admin ne peut pas s'en servir.
+  if (user.role === "superadmin" && !process.env.SMS_API_URL) throw new HTTPException(403, { message: "Super-admin : connectez-vous par e-mail et mot de passe" });
   const jetons = await emettreJetons(db, user);
   await auditer(db, { organisationId: user.organisationId, utilisateurId: user.id, action: "connexion_otp", entite: "utilisateur", entiteId: user.id });
   return c.json({ ...jetons, utilisateur: publicUser(user), organisations: comptes.map((u) => ({ id: u.organisationId, role: u.role })) });

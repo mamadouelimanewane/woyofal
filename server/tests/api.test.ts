@@ -172,10 +172,16 @@ describe("recharges et répartition (CA-02, CA-03, CA-07)", () => {
     const { utilisateurs } = await import("../db/schema");
     const d = await db();
     const { randomUUID } = await import("node:crypto");
-    await d.insert(utilisateurs).values({ id: randomUUID(), organisationId: null, role: "superadmin", nom: "Root", telephone: "221700000000" });
+    const { hacherMotDePasse } = await import("../lib/auth");
+    await d.insert(utilisateurs).values({ id: randomUUID(), organisationId: null, role: "superadmin", nom: "Root", telephone: "221700000000", email: "root@kuran.local", motDePasseHash: hacherMotDePasse("root-mot-de-passe") });
+    // sans fournisseur SMS, le super-admin ne peut pas se connecter par OTP (le code serait affiché à l'écran)
     const otp = await api("/auth/otp/request", { body: { telephone: "700000000" } });
-    const v = await api("/auth/otp/verify", { body: { telephone: "700000000", code: otp.json.devCode } });
+    expect((await api("/auth/otp/verify", { body: { telephone: "700000000", code: otp.json.devCode } })).status).toBe(403);
+    const v = await api("/auth/login", { body: { email: "root@kuran.local", motDePasse: "root-mot-de-passe" } });
+    expect(v.status).toBe(200);
     const root = v.json.accessToken;
+    const liste = await api("/admin/organisations", { token: root });
+    expect(liste.json.find((o: Json) => o.nom === "SCI Almadies").nbCompteurs).toBeGreaterThan(0);
     const g = await api("/admin/grille", { token: root, body: { dateEffet: "2026-11-01", libelle: "Test +10 %", tranche1: 90.2, tranche2: 150.14, tranche3: 175.3, seuilT1: 150, seuilT2: 250, redevance: 1300, seuilTva: 250, tauxTva: 0.18, tauxTaxeCommunale: 0.025 } });
     expect(g.status).toBe(201);
     const apres = await api(`/compteurs/${compteurId}/mois/2026-09`, { token: A.token });

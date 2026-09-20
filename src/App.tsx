@@ -15,6 +15,7 @@ import Parametres from "./pages/Parametres";
 import Payer, { PaiementRetour } from "./pages/Payer";
 import Rapports from "./pages/Rapports";
 import Groupe from "./pages/Groupe";
+import Admin from "./pages/Admin";
 import { orgCourante, useStore } from "./store/useStore";
 
 export default function App() {
@@ -54,6 +55,7 @@ export default function App() {
       </div>
     );
   }
+  if (s.superadmin) return <Routes><Route path="*" element={<Admin />} /></Routes>;
   if (!org) return <Routes><Route path="*" element={<Login />} /></Routes>;
   return (
     <Routes>

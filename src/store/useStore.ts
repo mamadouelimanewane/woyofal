@@ -30,6 +30,8 @@ interface State {
   /** "init" au démarrage, "anonyme" sans session, "pret" quand l'instantané est chargé. */
   etat: "init" | "anonyme" | "chargement" | "pret" | "erreur";
   erreur: string | null;
+  /** Compte super-admin (aucune organisation courante) : console d'administration. */
+  superadmin: boolean;
   sessionUserId: string | null;
   organisations: Organisation[];
   utilisateurs: Utilisateur[];
@@ -119,6 +121,7 @@ export const useStore = create<State>()((set, get) => {
     ...vide,
     etat: "init",
     erreur: null,
+    superadmin: false,
 
     demarrer: async () => {
       if (!lireSession()) return set({ etat: "anonyme" });
@@ -128,9 +131,14 @@ export const useStore = create<State>()((set, get) => {
     charger: async () => {
       set({ etat: get().etat === "pret" ? "pret" : "chargement" });
       try {
-        const [me, snap] = await Promise.all([api("/auth/me"), api("/snapshot")]);
+        const me = await api("/auth/me");
+        if (me.utilisateur.role === "superadmin" && !me.organisation) {
+          set({ ...vide, etat: "pret", erreur: null, superadmin: true, sessionUserId: me.utilisateur.id, utilisateurs: [me.utilisateur] });
+          return;
+        }
+        const snap = await api("/snapshot");
         set({
-          etat: "pret", erreur: null,
+          etat: "pret", erreur: null, superadmin: false,
           sessionUserId: me.utilisateur.id,
           organisations: [snap.organisation],
           utilisateurs: snap.utilisateurs,
@@ -152,7 +160,7 @@ export const useStore = create<State>()((set, get) => {
       const s = lireSession();
       if (s) api("/auth/logout", { body: { refreshToken: s.refreshToken } }).catch(() => undefined);
       ecrireSession(null);
-      set({ ...vide, etat: "anonyme" });
+      set({ ...vide, etat: "anonyme", superadmin: false });
     },
 
     addSite: ({ organisationId: _o, ...s }) => maj(api("/sites", { body: s })),

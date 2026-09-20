@@ -24,7 +24,14 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "KURAÑ Agent",
+      "shortName": "KURAÑ",
+      "lang": "fr",
+      "themeColor": "#0f766e",
+      "backgroundColor": "#f1f5f9"
     },
     "plugins": [
       "expo-secure-store"

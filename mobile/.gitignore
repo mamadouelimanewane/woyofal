@@ -1,4 +1,7 @@
 node_modules
 .expo
 dist
+dist-web
 *.log
+vercel-web/*
+!vercel-web/vercel.json
