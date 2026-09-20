@@ -199,6 +199,14 @@ describe("recouvrement (CA-04, CA-05, CA-06)", () => {
     expect(q.status).toBe(200);
     expect(q.json.lignes).toHaveLength(1);
     expect(q.json.occupant.nom).toBe("Awa Ndiaye");
+    // PDF public signé (CA-04)
+    expect(q.json.url).toContain(`/api/quittances/${p.json.quittanceNumero}/pdf?t=`);
+    const pdf = await app.request(q.json.url.replace(/^https?:\/\/[^/]+/, "http://localhost"));
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get("content-type")).toBe("application/pdf");
+    const octets = new Uint8Array(await pdf.arrayBuffer());
+    expect(String.fromCharCode(...octets.slice(0, 5))).toBe("%PDF-");
+    expect((await app.request(`http://localhost/api/quittances/${p.json.quittanceNumero}/pdf?t=faux`)).status).toBe(403);
     expect((await api(`/occupants/${occupant1}/paiements`, { token: A.token, body: { quotesPartsIds: [dues[0]], moyen: "especes" } })).status).toBe(400); // déjà payée
   });
 

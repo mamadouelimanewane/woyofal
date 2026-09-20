@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Building2, Plus, Share2, Zap } from "lucide-react";
+import { Building2, Plus, Share2, Upload, Zap } from "lucide-react";
 import { Badge, Card, Empty, Field, Modal, PageTitle } from "../components/ui";
 import RechargeForm from "../components/RechargeForm";
+import ImportModal from "../components/ImportModal";
 import { signaler } from "../components/erreur";
 import { compteursDeSite, cumulPeriode, depenseSiteMois, moisCourant, orgCourante, rechargesDeCompteur, sitesDeOrg, useStore } from "../store/useStore";
 import { fmtF, fmtKwh } from "../lib/tarif";
@@ -17,13 +18,13 @@ export default function Parc() {
   const sites = sitesDeOrg(s, org.id);
   const siteId = params.get("site") ?? "";
   const site = sites.find((x) => x.id === siteId);
-  const [modal, setModal] = useState<null | "site" | "lot" | "compteur">(null);
+  const [modal, setModal] = useState<null | "site" | "lot" | "compteur" | "import">(null);
   const [recharge, setRecharge] = useState<string | null>(null);
   const mois = moisCourant();
 
   return (
     <>
-      <PageTitle title={immo ? "Parc immobilier" : "Sites et compteurs"} subtitle={`${sites.length} ${immo ? "immeubles / cours" : "sites"} · ${s.compteurs.filter((c) => sites.some((x) => x.id === c.siteId)).length} compteurs`} action={<button className="btn-primary" onClick={() => setModal("site")}><Plus size={16} /> {immo ? "Immeuble" : "Site"}</button>} />
+      <PageTitle title={immo ? "Parc immobilier" : "Sites et compteurs"} subtitle={`${sites.length} ${immo ? "immeubles / cours" : "sites"} · ${s.compteurs.filter((c) => sites.some((x) => x.id === c.siteId)).length} compteurs`} action={<div className="flex gap-2"><button className="btn-secondary" onClick={() => setModal("import")}><Upload size={16} /> Importer Excel</button><button className="btn-primary" onClick={() => setModal("site")}><Plus size={16} /> {immo ? "Immeuble" : "Site"}</button></div>} />
 
       <div className="grid lg:grid-cols-[300px_1fr] gap-4">
         <div className="space-y-2">
@@ -119,6 +120,7 @@ export default function Parc() {
       {modal === "site" && <SiteModal onClose={() => setModal(null)} />}
       {modal === "lot" && site && <LotModal siteId={site.id} onClose={() => setModal(null)} />}
       {modal === "compteur" && site && <CompteurModal siteId={site.id} onClose={() => setModal(null)} />}
+      {modal === "import" && <ImportModal onClose={() => setModal(null)} />}
       {recharge && <RechargeForm compteurId={recharge} onClose={() => setRecharge(null)} />}
     </>
   );

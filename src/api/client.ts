@@ -7,7 +7,7 @@ const CLE = "kuran-auth";
 export interface Session { accessToken: string; refreshToken: string }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public details?: unknown) {
+  constructor(public status: number, message: string, public details?: unknown, public corps?: any) {
     super(message);
   }
 }
@@ -47,8 +47,20 @@ async function rafraichir(): Promise<boolean> {
   return rafraichissement;
 }
 
+/** Expiration (ms) d'un JWT, sans vérifier la signature (usage client uniquement). */
+function expiration(jeton: string): number {
+  try {
+    return JSON.parse(atob(jeton.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).exp * 1000;
+  } catch {
+    return 0;
+  }
+}
+
 export async function api<T = any>(path: string, init: { method?: string; body?: unknown; headers?: Record<string, string>; auth?: boolean } = {}): Promise<T> {
   const auth = init.auth ?? true;
+  // Rafraîchissement anticipé : évite un aller-retour 401 quand le jeton d'accès (15 min) est expiré.
+  const session = auth ? lireSession() : null;
+  if (session?.accessToken && expiration(session.accessToken) < Date.now() + 30_000) await rafraichir();
   const executer = async (): Promise<Response> => {
     const s = lireSession();
     return fetch(`/api${path}`, {
@@ -61,7 +73,7 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   if (res.status === 401 && auth && (await rafraichir())) res = await executer();
   const texte = await res.text();
   const json = texte ? JSON.parse(texte) : {};
-  if (!res.ok) throw new ApiError(res.status, json.erreur ?? `Erreur ${res.status}`, json.details);
+  if (!res.ok) throw new ApiError(res.status, json.erreur ?? `Erreur ${res.status}`, json.details, json);
   return json as T;
 }
 

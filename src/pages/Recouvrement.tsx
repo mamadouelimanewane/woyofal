@@ -3,6 +3,7 @@ import { CheckCircle2, FileText, MessageCircle, XCircle } from "lucide-react";
 import { Badge, Card, PageTitle, Stat, fmtDate } from "../components/ui";
 import { moisDe, moisCourant, orgCourante, sitesDeOrg, useStore } from "../store/useStore";
 import { signaler } from "../components/erreur";
+import { api } from "../api/client";
 import { fmtF } from "../lib/tarif";
 
 export default function Recouvrement() {
@@ -36,15 +37,8 @@ export default function Recouvrement() {
   }
 
   function quittance(l: (typeof lignes)[number]) {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(`<html><head><title>Quittance</title><style>body{font-family:sans-serif;padding:40px;max-width:600px}h1{color:#0f766e}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #eee}</style></head><body>
-      <h1>QUITTANCE D'ÉLECTRICITÉ</h1><p><strong>${org.nom}</strong>${org.ninea ? ` · NINEA ${org.ninea}` : ""}</p>
-      <table><tr><td>Occupant</td><td>${l.occ?.nom}</td></tr><tr><td>Lot</td><td>${l.site?.nom} — ${l.lot?.reference}</td></tr>
-      <tr><td>Compteur</td><td>${l.c?.numero}</td></tr><tr><td>Recharge du</td><td>${l.r ? fmtDate(l.r.date) : ""} (${fmtF(l.r?.montant ?? 0)})</td></tr>
-      <tr><td>Quote-part</td><td><strong>${fmtF(l.q.montant)}</strong></td></tr><tr><td>Payée le</td><td>${l.q.datePaiement ? fmtDate(l.q.datePaiement) : "—"} · ${l.q.moyenPaiement ?? ""}</td></tr></table>
-      <p style="margin-top:30px;font-size:12px;color:#666">Généré par KURAÑ le ${new Date().toLocaleDateString("fr-FR")}</p><script>window.print()</script></body></html>`);
-    w.document.close();
+    if (!l.q.quittanceNumero) return alert("Paiement enregistré avant la numérotation des quittances : pas de PDF disponible.");
+    api(`/quittances/${encodeURIComponent(l.q.quittanceNumero)}`).then((d) => window.open(d.url, "_blank"), signaler);
   }
 
   return (

@@ -103,6 +103,7 @@ export interface QuotePart {
   statut: StatutQuotePart;
   datePaiement?: string;
   moyenPaiement?: string;
+  quittanceNumero?: string;
 }
 
 export interface ReleveSousCompteur {

@@ -18,7 +18,7 @@ export default function Layout() {
   const liens = [
     { to: "/", label: "Tableau de bord", icon: LayoutDashboard },
     { to: "/parc", label: immo ? "Parc (immeubles)" : "Sites & compteurs", icon: immo ? Building2 : Store },
-    { to: "/recharges", label: "Recharges", icon: Zap },
+    { to: "/recharges", label: "Recharges", icon: Zap, badge: s.smsEnAttente },
     ...(immo
       ? [
           { to: "/occupants", label: "Occupants", icon: Users },

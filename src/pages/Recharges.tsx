@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Download, Plus } from "lucide-react";
 import { Badge, Card, PageTitle, fmtDate } from "../components/ui";
 import RechargeForm from "../components/RechargeForm";
+import SmsEnAttente from "../components/SmsEnAttente";
 import { compteursDeOrg, derniersMois, orgCourante, rechargesDeOrg, sitesDeOrg, useStore, moisDe } from "../store/useStore";
 import { fmtF, fmtKwh } from "../lib/tarif";
 
@@ -48,6 +49,7 @@ export default function Recharges() {
           <button className="btn-primary" onClick={() => setForm(true)}><Plus size={16} /> Recharge</button>
         </div>
       } />
+      <SmsEnAttente />
       <Card>
         <div className="flex flex-wrap gap-2 mb-4">
           <select className="input w-auto" value={mois} onChange={(e) => setMois(e.target.value)}>

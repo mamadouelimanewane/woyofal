@@ -13,6 +13,7 @@ import parc from "./routes/parc.js";
 import recharges from "./routes/recharges.js";
 import occupants from "./routes/occupants.js";
 import grille from "./routes/grille.js";
+import publique from "./routes/public.js";
 import admin from "./routes/admin.js";
 import snapshot from "./routes/snapshot.js";
 
@@ -31,6 +32,7 @@ app.get("/sante", (c) => c.json({ ok: true, version: "0.2.0", base: process.env.
 // sont montés avant ceux dont le `use(authentifie)` global s'appliquerait à tout ce qui suit.
 app.route("/auth", auth);
 app.route("/", grille);
+app.route("/", publique);
 app.route("/admin", admin);
 app.route("/", recharges);
 app.route("/", parc);
