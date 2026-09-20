@@ -10,7 +10,7 @@ npm install
 npm run db:seed    # jeu de démonstration (PGlite dans .pglite/, aucune installation)
 npm run dev:api    # API Hono → http://localhost:3001/api/sante
 npm run dev        # front Vite → http://localhost:5180 (proxy /api → 3001)
-npm test           # 12 tests moteur tarifaire + 30 tests d'intégration API (PGlite mémoire)
+npm test           # 12 tests moteur tarifaire + 33 tests d'intégration API (PGlite mémoire)
 npm run typecheck  # front + serveur
 ```
 
@@ -91,4 +91,4 @@ DATABASE_URL=postgres://… npm run db:seed      # (optionnel) démo sur Neon
 | Export comptable OHADA (6052 / 4452 / 5711), par site ou par recharge | ✅ |
 | Alertes serveur persistées (budget, inactivité, anomalie, redevance) + e-mail aux gestionnaires | ✅ (cron quotidien) |
 | Rapport automatique le 1er du mois par e-mail (Resend) | ✅ file d'envoi — clé `RESEND_API_KEY` à configurer |
-| Vue sites carte, comparaison entre sites comparables, consolidation groupe | ⏳ |
+| Carte des sites, comparaison entre sites comparables, consolidation Groupe / Cabinet | ✅ |
