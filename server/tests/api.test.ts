@@ -2,7 +2,7 @@
  * Tests d'intégration de l'API sur PGlite en mémoire (critères CA-02 → CA-08 du CDC v2).
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import { app } from "../app";
+import { app } from "../app.js";
 
 type Json = Record<string, any>;
 

@@ -3,14 +3,14 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { compteurs, ecartsCalcul, occupants, organisations, quotesParts, recharges, relevesSousCompteur, smsEntrants } from "../db/schema";
-import { ECRITURE, GESTION, TOUS, authentifie, roles, siteAutorise, type Vars } from "../lib/auth";
-import { auditer } from "../lib/audit";
-import { notifier } from "../lib/notifications";
-import { analyserSms, calculerPourCompteur, cumulPeriode, repartirRecharge } from "../lib/tarif-service";
-import { introuvable, invalide, num, uid } from "../lib/util";
-import { resteAvantTranche } from "../../src/lib/tarif";
-import type { Db } from "../db";
+import { compteurs, ecartsCalcul, occupants, organisations, quotesParts, recharges, relevesSousCompteur, smsEntrants } from "../db/schema.js";
+import { ECRITURE, GESTION, TOUS, authentifie, roles, siteAutorise, type Vars } from "../lib/auth.js";
+import { auditer } from "../lib/audit.js";
+import { notifier } from "../lib/notifications.js";
+import { analyserSms, calculerPourCompteur, cumulPeriode, repartirRecharge } from "../lib/tarif-service.js";
+import { introuvable, invalide, num, uid } from "../lib/util.js";
+import { resteAvantTranche } from "../../src/lib/tarif.js";
+import type { Db } from "../db/index.js";
 
 const r = new Hono<Vars>();
 

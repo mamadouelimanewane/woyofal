@@ -6,12 +6,12 @@
 import { Hono } from "hono";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { uid } from "../lib/util";
-import { alertes, compteurLots, compteurs, lots, occupants, organisations, quotesParts, recharges, relevesSousCompteur, sites, smsEntrants, utilisateurs } from "../db/schema";
-import { GESTION, TOUS, authentifie, roles, siteAutorise, type Vars } from "../lib/auth";
-import { grilles } from "../lib/tarif-service";
-import { num } from "../lib/util";
-import { publicUser } from "./auth";
+import { uid } from "../lib/util.js";
+import { alertes, compteurLots, compteurs, lots, occupants, organisations, quotesParts, recharges, relevesSousCompteur, sites, smsEntrants, utilisateurs } from "../db/schema.js";
+import { GESTION, TOUS, authentifie, roles, siteAutorise, type Vars } from "../lib/auth.js";
+import { grilles } from "../lib/tarif-service.js";
+import { num } from "../lib/util.js";
+import { publicUser } from "./auth.js";
 
 const r = new Hono<Vars>();
 r.use(authentifie);

@@ -1,5 +1,9 @@
-import { handle } from "hono/vercel";
-import { app } from "../server/app";
+/**
+ * Point d'entrée Vercel (runtime Node.js) : getRequestListener convertit
+ * (IncomingMessage, ServerResponse) en Request/Response pour Hono.
+ * NODEJS_HELPERS=0 sur Vercel pour désactiver le pré-parsing du corps des requêtes.
+ */
+import { getRequestListener } from "@hono/node-server";
+import { app } from "../server/app.js";
 
-export const config = { runtime: "nodejs" };
-export default handle(app);
+export default getRequestListener(app.fetch);

@@ -5,7 +5,7 @@
  * drizzle-kit dans ./drizzle et appliquées par `migrer()`.
  */
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import * as schema from "./schema";
+import * as schema from "./schema.js";
 
 export type Db = PgDatabase<any, typeof schema>;
 

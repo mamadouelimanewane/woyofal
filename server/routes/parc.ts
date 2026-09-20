@@ -2,11 +2,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import { compteurLots, compteurs, lots, occupants, organisations, sites, utilisateurs } from "../db/schema";
-import { ECRITURE, GESTION, TOUS, authentifie, normaliserTelephone, roles, siteAutorise, type Vars } from "../lib/auth";
-import { auditer } from "../lib/audit";
-import { introuvable, invalide, uid } from "../lib/util";
-import { publicUser } from "./auth";
+import { compteurLots, compteurs, lots, occupants, organisations, sites, utilisateurs } from "../db/schema.js";
+import { ECRITURE, GESTION, TOUS, authentifie, normaliserTelephone, roles, siteAutorise, type Vars } from "../lib/auth.js";
+import { auditer } from "../lib/audit.js";
+import { introuvable, invalide, uid } from "../lib/util.js";
+import { publicUser } from "./auth.js";
 
 const r = new Hono<Vars>();
 r.use(authentifie);

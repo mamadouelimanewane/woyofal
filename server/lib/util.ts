@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import type { Db } from "../db";
-import { sequences } from "../db/schema";
+import type { Db } from "../db/index.js";
+import { sequences } from "../db/schema.js";
 
 export const uid = () => randomUUID();
 export const num = (v: string | number | null | undefined): number => (v == null ? 0 : Number(v));

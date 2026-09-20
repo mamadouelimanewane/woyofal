@@ -2,12 +2,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
-import { compteurs, lots, notifications, occupants, organisations, paiementsOccupant, quotesParts, recharges, sites } from "../db/schema";
-import { ECRITURE, GESTION, TOUS, authentifie, normaliserTelephone, roles, siteAutorise, type Vars } from "../lib/auth";
-import { auditer } from "../lib/audit";
-import { notifier, traiterFile } from "../lib/notifications";
-import { introuvable, invalide, prochainNumero, uid } from "../lib/util";
-import type { Db } from "../db";
+import { compteurs, lots, notifications, occupants, organisations, paiementsOccupant, quotesParts, recharges, sites } from "../db/schema.js";
+import { ECRITURE, GESTION, TOUS, authentifie, normaliserTelephone, roles, siteAutorise, type Vars } from "../lib/auth.js";
+import { auditer } from "../lib/audit.js";
+import { notifier, traiterFile } from "../lib/notifications.js";
+import { introuvable, invalide, prochainNumero, uid } from "../lib/util.js";
+import type { Db } from "../db/index.js";
 
 const r = new Hono<Vars>();
 r.use(authentifie);

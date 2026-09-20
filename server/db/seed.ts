@@ -5,8 +5,8 @@
  *   npm run db:seed           → PGlite local
  *   DATABASE_URL=… npm run db:seed → Neon
  */
-import { app } from "../app";
-import * as demo from "../../src/data/demo";
+import { app } from "../app.js";
+import * as demo from "../../src/data/demo.js";
 
 async function api(path: string, body?: unknown, token?: string, method?: string): Promise<any> {
   const res = await app.request(`http://localhost/api${path}`, {

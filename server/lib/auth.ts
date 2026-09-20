@@ -7,9 +7,9 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { SignJWT, jwtVerify } from "jose";
-import type { Db } from "../db";
-import { otpCodes, sessions, utilisateurs } from "../db/schema";
-import { envoyerSms } from "./sms";
+import type { Db } from "../db/index.js";
+import { otpCodes, sessions, utilisateurs } from "../db/schema.js";
+import { envoyerSms } from "./sms.js";
 
 export type Role = "superadmin" | "admin" | "gestionnaire" | "agent" | "occupant" | "lecture";
 export type Utilisateur = typeof utilisateurs.$inferSelect;

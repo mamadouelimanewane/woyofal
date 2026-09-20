@@ -1,9 +1,9 @@
 /** Grille tarifaire en lecture + simulateur public (EF-TARIF-02/04). */
 import { Hono } from "hono";
 import { z } from "zod";
-import type { Vars } from "../lib/auth";
-import { grilles } from "../lib/tarif-service";
-import { calculerRecharge, grilleEnVigueur, montantPourKwh } from "../../src/lib/tarif";
+import type { Vars } from "../lib/auth.js";
+import { grilles } from "../lib/tarif-service.js";
+import { calculerRecharge, grilleEnVigueur, montantPourKwh } from "../../src/lib/tarif.js";
 
 const r = new Hono<Vars>();
 

@@ -5,9 +5,9 @@
  */
 import { randomUUID } from "node:crypto";
 import { and, eq, lt } from "drizzle-orm";
-import type { Db } from "../db";
-import { notifications, organisations } from "../db/schema";
-import { envoyerSms } from "./sms";
+import type { Db } from "../db/index.js";
+import { notifications, organisations } from "../db/schema.js";
+import { envoyerSms } from "./sms.js";
 
 export type Canal = "whatsapp" | "sms" | "email";
 

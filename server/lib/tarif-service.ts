@@ -3,13 +3,13 @@
  * (src/lib/repartition.ts) : grille en vigueur, cumul de période, quotes-parts.
  */
 import { and, asc, eq, inArray, lt } from "drizzle-orm";
-import type { Db } from "../db";
-import { compteurLots, grillesTarifaires, lots, occupants, patternsSms, recharges, relevesSousCompteur } from "../db/schema";
-import { GRILLE_2026, calculerRecharge, clePeriode, grilleEnVigueur } from "../../src/lib/tarif";
-import { repartir, type PartCalculee } from "../../src/lib/repartition";
-import { parserSms, type SmsParse } from "../../src/lib/sms";
-import type { GrilleTarifaire } from "../../src/types";
-import { num, uid } from "./util";
+import type { Db } from "../db/index.js";
+import { compteurLots, grillesTarifaires, lots, occupants, patternsSms, recharges, relevesSousCompteur } from "../db/schema.js";
+import { GRILLE_2026, calculerRecharge, clePeriode, grilleEnVigueur } from "../../src/lib/tarif.js";
+import { repartir, type PartCalculee } from "../../src/lib/repartition.js";
+import { parserSms, type SmsParse } from "../../src/lib/sms.js";
+import type { GrilleTarifaire } from "../../src/types/index.js";
+import { num, uid } from "./util.js";
 
 export function versGrille(g: typeof grillesTarifaires.$inferSelect): GrilleTarifaire {
   return { id: g.id, dateEffet: g.dateEffet, libelle: g.libelle, tranche1: num(g.tranche1), tranche2: num(g.tranche2), tranche3: num(g.tranche3), seuilT1: g.seuilT1, seuilT2: g.seuilT2, redevance: g.redevance, seuilTva: g.seuilTva, tauxTva: num(g.tauxTva), tauxTaxeCommunale: num(g.tauxTaxeCommunale), periode: g.periode as "mois" | "bimestre" };

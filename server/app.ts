@@ -6,15 +6,15 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
-import { db } from "./db";
-import type { Vars } from "./lib/auth";
-import auth from "./routes/auth";
-import parc from "./routes/parc";
-import recharges from "./routes/recharges";
-import occupants from "./routes/occupants";
-import grille from "./routes/grille";
-import admin from "./routes/admin";
-import snapshot from "./routes/snapshot";
+import { db } from "./db/index.js";
+import type { Vars } from "./lib/auth.js";
+import auth from "./routes/auth.js";
+import parc from "./routes/parc.js";
+import recharges from "./routes/recharges.js";
+import occupants from "./routes/occupants.js";
+import grille from "./routes/grille.js";
+import admin from "./routes/admin.js";
+import snapshot from "./routes/snapshot.js";
 
 export const app = new Hono<Vars>().basePath("/api");
 

@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { organisations, utilisateurs } from "../db/schema";
-import { authentifie, demanderOtp, emettreJetons, hacherMotDePasse, normaliserTelephone, rafraichir, revoquer, verifierMotDePasse, verifierOtp, type Vars } from "../lib/auth";
-import { auditer } from "../lib/audit";
-import { uid } from "../lib/util";
+import { organisations, utilisateurs } from "../db/schema.js";
+import { authentifie, demanderOtp, emettreJetons, hacherMotDePasse, normaliserTelephone, rafraichir, revoquer, verifierMotDePasse, verifierOtp, type Vars } from "../lib/auth.js";
+import { auditer } from "../lib/audit.js";
+import { uid } from "../lib/util.js";
 import { randomBytes } from "node:crypto";
 
 const r = new Hono<Vars>();
