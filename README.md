@@ -10,7 +10,7 @@ npm install
 npm run db:seed    # jeu de démonstration (PGlite dans .pglite/, aucune installation)
 npm run dev:api    # API Hono → http://localhost:3001/api/sante
 npm run dev        # front Vite → http://localhost:5180 (proxy /api → 3001)
-npm test           # 12 tests moteur tarifaire + 21 tests d'intégration API (PGlite mémoire)
+npm test           # 12 tests moteur tarifaire + 30 tests d'intégration API (PGlite mémoire)
 npm run typecheck  # front + serveur
 ```
 
@@ -80,7 +80,7 @@ DATABASE_URL=postgres://… npm run db:seed      # (optionnel) démo sur Neon
 | Grille versionnée, cumul de période, simulation | ✅ |
 | Quotes-parts, paiements, quittances numérotées, sortie d'occupant | ✅ |
 | Relances (file WhatsApp → SMS), cron quotidien | ✅ (envoi réel dès que les clés sont configurées) |
-| Abonnement : plans, essai 30 j, lecture seule | ✅ base — facturation VersusPay à venir |
+| Abonnement : plans, essai 30 j, lecture seule, paiement en ligne | ✅ |
 | Quittance PDF (URL signée), import Excel, SMS en attente | ✅ |
 | Paiement en ligne Wave / Orange Money (quotes-parts + abonnement), webhooks | ✅ en **mode simulation** tant que les clés API ne sont pas configurées |
 | Déploiement Neon + Vercel | ✅ https://woyofal.vercel.app |
