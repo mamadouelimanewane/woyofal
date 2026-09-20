@@ -58,7 +58,7 @@ Console sur https://woyofal.vercel.app (onglet E-mail) : organisations, plans et
 
 ## Kit pilote (docs/)
 
-`npm run docs:build` régénère `docs/dist/` : guide utilisateur, script de démonstration, fiche programme pilote, projet de déclaration CDP (PDF) et modèles d'import Excel (Immo, Entreprise). Sources Markdown dans `docs/`.
+`npm run docs:word` (NODE_PATH=$(npm root -g)) génère le guide Word « Comment fonctionne l'application, pas à pas » ; `npm run docs:build` régénère `docs/dist/` : guide utilisateur, script de démonstration, fiche programme pilote, projet de déclaration CDP (PDF) et modèles d'import Excel (Immo, Entreprise). Sources Markdown dans `docs/`.
 
 ## Variables d'environnement
 

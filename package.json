@@ -14,7 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx server/db/migrate-cli.ts",
     "db:seed": "tsx server/db/seed.ts",
-    "docs:build": "python docs/build.py"
+    "docs:build": "python docs/build.py",
+    "docs:word": "node docs/build-docx.cjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
