@@ -38,6 +38,10 @@ src/store/useStore.ts   instantané de l'organisation (/api/snapshot) + actions 
 drizzle/                migrations SQL générées (drizzle-kit)
 ```
 
+## Kit pilote (docs/)
+
+`npm run docs:build` régénère `docs/dist/` : guide utilisateur, script de démonstration, fiche programme pilote, projet de déclaration CDP (PDF) et modèles d'import Excel (Immo, Entreprise). Sources Markdown dans `docs/`.
+
 ## Variables d'environnement
 
 Voir [.env.example](.env.example). Sans `DATABASE_URL`, l'API utilise PGlite (fichier `.pglite/`). En production : Neon + `JWT_SECRET` + fournisseur SMS + WhatsApp Business + `CRON_SECRET`.

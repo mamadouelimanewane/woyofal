@@ -13,7 +13,8 @@
     "typecheck": "tsc -b && tsc -p tsconfig.server.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx server/db/migrate-cli.ts",
-    "db:seed": "tsx server/db/seed.ts"
+    "db:seed": "tsx server/db/seed.ts",
+    "docs:build": "python docs/build.py"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
