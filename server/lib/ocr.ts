@@ -28,7 +28,11 @@ export async function analyserImage(base64: string, mediaType: string, mode: Mod
   if (!MEDIA.has(mediaType)) throw new Error("Format d'image non pris en charge (JPEG, PNG, WebP)");
   if (base64.length > 8_000_000) throw new Error("Image trop volumineuse (6 Mo max)");
   if (process.env.ANTHROPIC_API_KEY) return viaClaude(base64, mediaType, mode);
-  return viaTesseract(base64, mode);
+  // Tesseract peut bloquer si l'environnement ne charge pas ses fichiers : on borne l'attente.
+  return Promise.race([
+    viaTesseract(base64, mode),
+    new Promise<ResultatOcr>((_, rej) => setTimeout(() => rej(new Error("OCR serveur indisponible (délai dépassé) — réessayez ou saisissez les valeurs")), Number(process.env.OCR_TIMEOUT_MS ?? 40_000))),
+  ]);
 }
 
 // ---------- Claude (vision) ----------
@@ -70,6 +74,7 @@ async function worker() {
   if (!tesseractWorker) {
     tesseractWorker = (async () => {
       const { createWorker } = await import("tesseract.js");
+      // Sur Vercel, le script du worker et le cœur wasm sont résolus depuis node_modules ; les données de langue vont dans /tmp.
       const w = await createWorker("fra+eng", 1, { cachePath: tmpdir(), errorHandler: () => undefined });
       return w;
     })();
