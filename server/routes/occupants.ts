@@ -6,18 +6,11 @@ import { compteurs, lots, notifications, occupants, organisations, paiementsOccu
 import { ECRITURE, GESTION, TOUS, authentifie, normaliserTelephone, roles, siteAutorise, type Vars } from "../lib/auth.js";
 import { auditer } from "../lib/audit.js";
 import { notifier, traiterFile } from "../lib/notifications.js";
-import { introuvable, invalide, prochainNumero, uid } from "../lib/util.js";
+import { introuvable, invalide, uid, urlPublique } from "../lib/util.js";
 import type { Db } from "../db/index.js";
 import { urlQuittance } from "../lib/quittance-pdf.js";
-
-/** Origine publique de l'application (APP_URL en prod, sinon l'origine de la requête). */
-export function baseUrl(c: { req: { url: string; header: (n: string) => string | undefined } }): string {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
-  const u = new URL(c.req.url);
-  const proto = c.req.header("x-forwarded-proto") ?? u.protocol.replace(":", "");
-  const host = c.req.header("x-forwarded-host") ?? c.req.header("host") ?? u.host;
-  return `${proto}://${host}`;
-}
+import { enregistrerPaiementOccupant } from "../lib/recouvrement.js";
+import { lienPayerOccupant } from "../lib/paiement.js";
 
 const r = new Hono<Vars>();
 r.use(authentifie);
@@ -68,23 +61,10 @@ async function compte(db: Db, o: typeof occupants.$inferSelect) {
 r.post("/occupants/:id/paiements", roles(...ECRITURE), async (c) => {
   const b = z.object({ quotesPartsIds: z.array(z.string()).min(1), moyen: z.enum(["especes", "wave", "om", "virement", "versuspay"]), reference: z.string().optional(), date: z.string().optional() }).parse(await c.req.json());
   const db = c.get("db");
-  const orgId = c.get("orgId");
-  const [o] = await db.select().from(occupants).where(and(eq(occupants.id, c.req.param("id")), eq(occupants.organisationId, orgId)));
+  const [o] = await db.select().from(occupants).where(and(eq(occupants.id, c.req.param("id")), eq(occupants.organisationId, c.get("orgId"))));
   if (!o) introuvable();
-  const qps = await db.select().from(quotesParts).where(and(inArray(quotesParts.id, b.quotesPartsIds), eq(quotesParts.occupantId, o.id), eq(quotesParts.statut, "due")));
-  if (qps.length !== b.quotesPartsIds.length) invalide("Une des quotes-parts n'est pas due ou n'appartient pas à cet occupant");
-  const montant = qps.reduce((a, q) => a + q.montant, 0);
-  const numero = await prochainNumero(db, orgId, "quittance");
-  const date = b.date ? new Date(b.date) : new Date();
-  const quittanceUrl = urlQuittance(baseUrl(c), numero);
-  const [p] = await db.insert(paiementsOccupant).values({ id: uid(), organisationId: orgId, occupantId: o.id, montant, date, moyen: b.moyen, reference: b.reference, quittanceNumero: numero, quittanceUrl, quotesPartsIds: qps.map((q) => q.id), creePar: c.get("user").id }).returning();
-  await db.update(quotesParts).set({ statut: "payee", datePaiement: date, moyenPaiement: b.moyen, referencePaiement: b.reference, quittanceNumero: numero, modifieLe: new Date(), modifiePar: c.get("user").id }).where(inArray(quotesParts.id, qps.map((q) => q.id)));
-  await auditer(db, { organisationId: orgId, utilisateurId: c.get("user").id, action: "payer", entite: "occupant", entiteId: o.id, apres: { montant, moyen: b.moyen, quittance: numero } });
-  if (o.telephone && o.consentementNotifications) {
-    const [org] = await db.select({ nom: organisations.nom }).from(organisations).where(eq(organisations.id, orgId));
-    await notifier(db, { organisationId: orgId, destinataire: o.telephone, occupantId: o.id, modele: "quittance", corps: `${org.nom} : paiement de ${montant.toLocaleString("fr-FR")} F reçu (${b.moyen}). Quittance n° ${numero} : ${quittanceUrl}` });
-  }
-  return c.json({ paiement: p, quittanceNumero: numero, quittanceUrl, montant }, 201);
+  const res = await enregistrerPaiementOccupant(db, { organisationId: c.get("orgId"), occupant: o, quotesPartsIds: b.quotesPartsIds, moyen: b.moyen, reference: b.reference, date: b.date ? new Date(b.date) : new Date(), utilisateurId: c.get("user").id });
+  return c.json(res, 201);
 });
 
 /** Données d'une quittance (rendu PDF serveur, cf. server/lib/quittance-pdf.ts). */
@@ -105,7 +85,7 @@ export async function donneesQuittance(db: Db, numero: string, orgId?: string) {
 r.get("/quittances/:numero", roles(...TOUS), async (c) => {
   const d = await donneesQuittance(c.get("db"), c.req.param("numero"), c.get("orgId"));
   if (!d) introuvable();
-  return c.json({ ...d, url: urlQuittance(baseUrl(c), d.paiement.quittanceNumero) });
+  return c.json({ ...d, url: urlQuittance(urlPublique(), d.paiement.quittanceNumero) });
 });
 
 /** EF-OCC-07 : sortie — solde de clôture, état de sortie, libération du lot. */
@@ -195,7 +175,7 @@ export async function relancer(db: Db, orgId: string, occupantIds?: string[], me
       const [deja] = await db.select({ id: notifications.id }).from(notifications).where(and(eq(notifications.occupantId, o.id), eq(notifications.modele, `relance_${palier}`), sql`${notifications.creeLe} > now() - interval '20 days'`));
       if (deja) continue;
     }
-    const corps = message ?? `${org.nom} : vous devez ${du.toLocaleString("fr-FR")} F d'électricité (quote-part Woyofal). Merci de régulariser. Répondez à ce message pour toute question.`;
+    const corps = message ?? `${org.nom} : vous devez ${du.toLocaleString("fr-FR")} F d'électricité (quote-part Woyofal). Payez par Wave ou Orange Money : ${lienPayerOccupant(o.id)}`;
     await notifier(db, { organisationId: orgId, destinataire: o.telephone, occupantId: o.id, modele: `relance_${palier}`, corps });
     n++;
   }

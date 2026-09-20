@@ -12,12 +12,24 @@ import Recouvrement from "./pages/Recouvrement";
 import Alertes from "./pages/Alertes";
 import Grille from "./pages/Grille";
 import Parametres from "./pages/Parametres";
+import Payer, { PaiementRetour } from "./pages/Payer";
 import { orgCourante, useStore } from "./store/useStore";
 
 export default function App() {
   const s = useStore();
   const org = orgCourante(s);
   useEffect(() => { void s.demarrer(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pages publiques (liens signés envoyés aux occupants), indépendantes de la session
+  const chemin = window.location.pathname;
+  if (chemin.startsWith("/payer/") || chemin.startsWith("/paiement/")) {
+    return (
+      <Routes>
+        <Route path="/payer/:occupantId" element={<Payer />} />
+        <Route path="/paiement/:id" element={<PaiementRetour />} />
+      </Routes>
+    );
+  }
 
   if (s.etat === "init" || s.etat === "chargement") {
     return (

@@ -26,4 +26,14 @@ export async function prochainNumero(db: Db, organisationId: string, nom: "quitt
   return `${prefixe}-${new Date().getFullYear()}-${String(row.valeur).padStart(6, "0")}`;
 }
 
+/**
+ * Origine publique de l'application pour les liens envoyés aux occupants (quittances, paiement).
+ * APP_URL en production ; sinon l'origine de la dernière requête reçue (mémorisée par app.ts).
+ */
+let origineCourante = "";
+export function memoriserOrigine(o: string): void { origineCourante = o; }
+export function urlPublique(): string {
+  return (process.env.APP_URL ?? origineCourante ?? "").replace(/\/$/, "") || "http://localhost:5180";
+}
+
 export { and, eq };

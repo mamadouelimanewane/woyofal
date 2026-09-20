@@ -378,3 +378,29 @@ export const smsEntrants = pgTable(
   },
   (t) => [index("sms_entrants_org_statut").on(t.organisationId, t.statut)],
 );
+
+/** Paiements en ligne Wave / Orange Money (quotes-parts d'occupants et abonnements). */
+export const paiementsEnLigne = pgTable(
+  "paiements_en_ligne",
+  {
+    id: id(),
+    organisationId: orgId(),
+    type: text("type").notNull(), // quote_part | abonnement
+    occupantId: text("occupant_id"),
+    quotesPartsIds: jsonb("quotes_parts_ids").$type<string[]>().notNull().default([]),
+    periodicite: text("periodicite"), // abonnement : mensuel | annuel
+    montant: integer("montant").notNull(),
+    moyen: text("moyen").notNull(), // wave | om
+    statut: text("statut").notNull().default("en_attente"), // en_attente | paye | echec | expire
+    externeId: text("externe_id"), // id de session Wave / pay_token Orange
+    notifToken: text("notif_token"), // Orange : jeton attendu dans la notification
+    reference: text("reference"), // référence de transaction du fournisseur
+    urlPaiement: text("url_paiement"),
+    paiementOccupantId: text("paiement_occupant_id"),
+    factureId: text("facture_id"),
+    erreur: text("erreur"),
+    creeLe: timestamp("cree_le", { withTimezone: true }).defaultNow().notNull(),
+    payeLe: timestamp("paye_le", { withTimezone: true }),
+  },
+  (t) => [index("pel_org_statut").on(t.organisationId, t.statut), index("pel_externe").on(t.externeId)],
+);

@@ -7,6 +7,7 @@ import { compteurs, ecartsCalcul, occupants, organisations, quotesParts, recharg
 import { ECRITURE, GESTION, TOUS, authentifie, roles, siteAutorise, type Vars } from "../lib/auth.js";
 import { auditer } from "../lib/audit.js";
 import { notifier } from "../lib/notifications.js";
+import { lienPayerOccupant } from "../lib/paiement.js";
 import { analyserSms, calculerPourCompteur, cumulPeriode, repartirRecharge } from "../lib/tarif-service.js";
 import { introuvable, invalide, num, uid } from "../lib/util.js";
 import { resteAvantTranche } from "../../src/lib/tarif.js";
@@ -87,7 +88,7 @@ async function notifierQuotesParts(db: Db, org: string, cpt: typeof compteurs.$i
     if (!oc?.telephone || !oc.consentementNotifications) continue;
     const corps = o.p?.langue === "wo"
       ? `${o.nom} : kurañ bu ${cpt.libelle ?? cpt.numero} ñu def ${montant.toLocaleString("fr-FR")} F. Sa wàll : ${p.montant.toLocaleString("fr-FR")} F.`
-      : `${o.nom} : recharge de ${montant.toLocaleString("fr-FR")} F sur le compteur ${cpt.libelle ?? cpt.numero}. Votre quote-part : ${p.montant.toLocaleString("fr-FR")} F.`;
+      : `${o.nom} : recharge de ${montant.toLocaleString("fr-FR")} F sur le compteur ${cpt.libelle ?? cpt.numero}. Votre quote-part : ${p.montant.toLocaleString("fr-FR")} F. Payer : ${lienPayerOccupant(oc.id)}`;
     await notifier(db, { organisationId: org, destinataire: oc.telephone, occupantId: oc.id, modele: "quote_part", corps });
   }
 }

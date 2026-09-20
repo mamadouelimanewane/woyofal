@@ -279,3 +279,94 @@ describe("snapshot et grille publique", () => {
     expect(r.json.kwh).toBeGreaterThan(40);
   });
 });
+
+describe("paiement en ligne Wave / Orange Money (mode simulation)", () => {
+  let lien: string;
+  let paiementId: string;
+
+  it("expose la page publique de l'occupant avec ses quotes-parts dues", async () => {
+    // Une nouvelle recharge partagée génère des dues pour Moussa Fall (lot A2)
+    const r = await api("/recharges", { token: A.token, body: { compteurId, date: "2026-10-05T09:00:00+00:00", montant: 12000 } });
+    expect(r.status).toBe(201);
+    const occ = await api("/occupants", { token: A.token });
+    const moussa = occ.json.find((o: Json) => o.nom === "Moussa Fall");
+    const notifs = await api("/notifications", { token: A.token });
+    const n = notifs.json.find((x: Json) => x.occupantId === moussa.id && x.modele === "quote_part");
+    expect(n.corps).toMatch(/Payer : http:\/\/localhost[^ ]*\/payer\//);
+    lien = n.corps.match(/\/payer\/([^\s?]+)\?t=([A-Za-z0-9_-]+)/)!.slice(1).join("?t=");
+    expect((await api(`/public/occupants/${moussa.id}?t=faux`)).status).toBe(403);
+    const page = await api(`/public/occupants/${lien}`);
+    expect(page.status).toBe(200);
+    expect(page.json.occupant.nom).toBe("Moussa Fall");
+    expect(page.json.total).toBeGreaterThan(0);
+    expect(page.json.moyens.every((m: Json) => m.simulation)).toBe(true);
+  });
+
+  it("lance un paiement Wave, le simulateur confirme, la quittance est émise", async () => {
+    const page = await api(`/public/occupants/${lien}`);
+    const [occId, t] = lien.split("?t=");
+    const l2 = await api(`/public/occupants/${occId}/payer?t=${t}`, { body: { moyen: "wave" } });
+    expect(l2.status).toBe(201);
+    expect(l2.json.simulation).toBe(true);
+    expect(l2.json.montant).toBe(page.json.total);
+    paiementId = l2.json.id;
+    const sim = await app.request(l2.json.url.replace(/^https?:\/\/[^/]+/, "http://localhost"));
+    expect(sim.status).toBe(200);
+    expect(await sim.text()).toContain("Wave");
+    const post = await app.request(l2.json.url.replace(/^https?:\/\/[^/]+/, "http://localhost"), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "resultat=succes" });
+    expect(post.status).toBe(302);
+    const suivi = await api(`/public/paiements/${paiementId}`);
+    expect(suivi.json.statut).toBe("paye");
+    expect(suivi.json.reference).toMatch(/^SIM-/);
+    expect(suivi.json.quittanceUrl).toContain("/api/quittances/");
+    const apres = await api(`/public/occupants/${lien}`);
+    expect(apres.json.total).toBe(0);
+    // idempotence : reconfirmer ne crée pas de seconde quittance
+    const post2 = await app.request(l2.json.url.replace(/^https?:\/\/[^/]+/, "http://localhost"), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "resultat=succes" });
+    expect(post2.status).toBe(302);
+    expect((await api(`/public/paiements/${paiementId}`)).json.statut).toBe("paye");
+  });
+
+  it("refuse de payer quand rien n'est dû", async () => {
+    const [occId, t] = lien.split("?t=");
+    expect((await api(`/public/occupants/${occId}/payer?t=${t}`, { body: { moyen: "om" } })).status).toBe(400);
+  });
+
+  it("abonnement : montant calculé selon l'usage, paiement Orange Money annuel, organisation active", async () => {
+    const a = await api("/abonnement", { token: A.token });
+    expect(a.status).toBe(200);
+    expect(a.json.plan).toBe("gratuit");
+    expect(a.json.usage.nbCompteurs).toBeGreaterThan(0);
+    const p = await api("/abonnement/payer", { token: A.token, body: { moyen: "om", periodicite: "annuel", plan: "starter" } });
+    expect(p.status).toBe(201);
+    expect(p.json.montant).toBe(Math.round(10000 * 12 * 0.85));
+    const post = await app.request(p.json.url.replace(/^https?:\/\/[^/]+/, "http://localhost"), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "resultat=succes" });
+    expect(post.status).toBe(302);
+    const me = await api("/auth/me", { token: A.token });
+    expect(me.json.organisation.statut).toBe("actif");
+    expect(me.json.organisation.plan).toBe("starter");
+    const a2 = await api("/abonnement", { token: A.token });
+    expect(a2.json.factures).toHaveLength(1);
+    expect(a2.json.factures[0].numero).toMatch(/^F-\d{4}-000001$/);
+    expect(new Date(a2.json.echeance).getTime()).toBeGreaterThan(Date.now() + 360 * 86400_000);
+    // organisation sans usage : le plan gratuit ne se paie pas, le plan Entreprise impose le minimum de 10 sites
+    expect((await api("/abonnement/payer", { token: B.token, body: { moyen: "wave" } })).status).toBe(400);
+    const pb = await api("/abonnement/payer", { token: B.token, body: { moyen: "wave", plan: "entreprise" } });
+    expect(pb.status).toBe(201);
+    expect(pb.json.montant).toBe(30000);
+  });
+
+  it("webhook Wave : confirme un paiement par client_reference (sans secret en test)", async () => {
+    const [occId, t] = lien.split("?t=");
+    await api("/recharges", { token: A.token, body: { compteurId, date: "2026-10-12T09:00:00+00:00", montant: 6000 } });
+    const l = await api(`/public/occupants/${occId}/payer?t=${t}`, { body: { moyen: "wave" } });
+    expect(l.status).toBe(201);
+    const wh = await api("/webhooks/wave", { body: { type: "checkout.session.completed", data: { id: "cos-test", client_reference: l.json.id, payment_status: "succeeded", transaction_id: "T-WAVE-1" } } });
+    expect(wh.json.res).toBe("paye");
+    const suivi = await api(`/public/paiements/${l.json.id}`);
+    expect(suivi.json).toMatchObject({ statut: "paye", reference: "T-WAVE-1" });
+    // Orange : notif_token inconnu → ignoré
+    const wo = await api("/webhooks/orange", { body: { status: "SUCCESS", notif_token: "inconnu", txnid: "X" } });
+    expect(wo.json.res).toBe("inconnu");
+  });
+});
