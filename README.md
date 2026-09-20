@@ -38,6 +38,10 @@ src/store/useStore.ts   instantané de l'organisation (/api/snapshot) + actions 
 drizzle/                migrations SQL générées (drizzle-kit)
 ```
 
+## Application mobile agent (mobile/)
+
+Expo (React Native) : `cd mobile && npm install && npx expo start` puis Expo Go. Compteurs et cumul du mois, recharge par collage / détection du SMS, relevés, file hors ligne synchronisée. Détails dans [mobile/README.md](mobile/README.md).
+
 ## Kit pilote (docs/)
 
 `npm run docs:build` régénère `docs/dist/` : guide utilisateur, script de démonstration, fiche programme pilote, projet de déclaration CDP (PDF) et modèles d'import Excel (Immo, Entreprise). Sources Markdown dans `docs/`.
@@ -96,3 +100,9 @@ DATABASE_URL=postgres://… npm run db:seed      # (optionnel) démo sur Neon
 | Alertes serveur persistées (budget, inactivité, anomalie, redevance) + e-mail aux gestionnaires | ✅ (cron quotidien) |
 | Rapport automatique le 1er du mois par e-mail (Resend) | ✅ file d'envoi — clé `RESEND_API_KEY` à configurer |
 | Carte des sites, comparaison entre sites comparables, consolidation Groupe / Cabinet | ✅ |
+
+| Lot 3 | État |
+|---|---|
+| Application mobile agent (Expo Go) : compteurs, recharge par SMS collé / presse-papiers, relevés, hors ligne | ✅ v0.1 |
+| Capture SMS automatique Android (module natif, development build EAS) | ⏳ |
+| OCR des tickets, portail occupant complet, recharge groupée | ⏳ |
