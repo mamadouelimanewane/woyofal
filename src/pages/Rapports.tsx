@@ -13,6 +13,7 @@ interface Rapport {
   sites: { siteId: string; nom: string; type: string; depense: number; kwh: number; nbRecharges: number; nbCompteurs: number; budget: number | null; ecartBudgetPct: number | null; coutM2: number | null; coutKwh: number | null; variationPct: number | null; joursSansRecharge: number | null }[];
   tendance: { mois: string; depense: number; kwh: number }[];
   signaux: string[];
+  comparaison: { type: string; nbSites: number; moyenneDepense: number; moyenneCoutM2: number | null; sites: { siteId: string; nom: string; depense: number; coutM2: number | null; ecartPct: number | null; ecartM2Pct: number | null }[] }[];
 }
 
 /** Télécharge une ressource protégée (PDF, CSV) avec le jeton en cours. */
@@ -91,6 +92,26 @@ export default function Rapports() {
               </table>
             </div>
           </Card>
+
+          {rap.comparaison.length > 0 && (
+            <Card title="Comparaison entre sites comparables">
+              <div className="grid md:grid-cols-2 gap-4">
+                {rap.comparaison.map((g) => (
+                  <div key={g.type} className="rounded-xl border p-3">
+                    <div className="flex justify-between text-sm mb-2"><span className="font-semibold capitalize">{g.type}s ({g.nbSites})</span><span className="text-slate-500">moyenne {fmtF(g.moyenneDepense)}{g.moyenneCoutM2 ? ` · ${g.moyenneCoutM2} F/m²` : ""}</span></div>
+                    <ul className="text-sm divide-y divide-slate-100">
+                      {g.sites.map((x) => { const e = x.ecartM2Pct ?? x.ecartPct; return (
+                        <li key={x.siteId} className="flex items-center justify-between py-1.5">
+                          <span>{x.nom}<span className="text-xs text-slate-500"> · {fmtF(x.depense)}{x.coutM2 ? ` · ${x.coutM2} F/m²` : ""}</span></span>
+                          {e == null ? <span className="text-slate-400">—</span> : <Badge tone={e >= 40 ? "red" : e > 10 ? "amber" : e < -10 ? "green" : "slate"}>{e > 0 ? "+" : ""}{e} %</Badge>}
+                        </li>); })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Écart au coût moyen au m² des sites du même type (ou à la dépense moyenne si les surfaces manquent).</p>
+            </Card>
+          )}
 
           <Card title="Tendance 12 mois">
             <div className="h-56">

@@ -56,7 +56,9 @@ r.patch("/utilisateurs/:id", roles("admin"), async (c) => {
 });
 
 // ---------- Sites ----------
-const SiteBody = z.object({ nom: z.string().min(1), type: z.string().default("immeuble"), adresse: z.string().optional(), geo: z.object({ lat: z.number(), lng: z.number() }).optional(), surfaceM2: z.number().int().optional(), budgetMensuel: z.number().int().optional(), responsable: z.string().optional(), joursInactiviteAlerte: z.number().int().optional() });
+// Les valeurs par défaut ne s'appliquent qu'à la création : un PATCH partiel ne doit rien réinitialiser.
+const SiteBase = z.object({ nom: z.string().min(1), type: z.string(), adresse: z.string().optional(), geo: z.object({ lat: z.number(), lng: z.number() }).optional(), surfaceM2: z.number().int().optional(), budgetMensuel: z.number().int().optional(), responsable: z.string().optional(), joursInactiviteAlerte: z.number().int().optional() });
+const SiteBody = SiteBase.extend({ type: z.string().default("immeuble") });
 
 r.get("/sites", roles(...TOUS), async (c) => {
   const rows = await c.get("db").select().from(sites).where(and(eq(sites.organisationId, c.get("orgId")), isNull(sites.archiveLe))).orderBy(asc(sites.nom));
@@ -72,7 +74,7 @@ r.post("/sites", roles(...GESTION), async (c) => {
 });
 
 r.patch("/sites/:id", roles(...GESTION), async (c) => {
-  const b = SiteBody.partial().parse(await c.req.json());
+  const b = SiteBase.partial().parse(await c.req.json());
   const db = c.get("db");
   if (!siteAutorise(c, c.req.param("id"))) introuvable();
   const [s] = await db.update(sites).set({ ...b, modifieLe: new Date(), modifiePar: c.get("user").id }).where(and(eq(sites.id, c.req.param("id")), eq(sites.organisationId, c.get("orgId")))).returning();
@@ -123,7 +125,8 @@ r.delete("/lots/:id", roles(...GESTION), async (c) => {
 });
 
 // ---------- Compteurs ----------
-const CompteurBody = z.object({ siteId: z.string(), numero: Numero, libelle: z.string().optional(), typeTarif: z.enum(["DPP", "DMP", "PRO"]).default("DPP"), puissanceKva: z.number().optional(), statut: z.enum(["actif", "resilie"]).default("actif"), regleRepartition: Regle.default("egal"), photoUrl: z.string().optional(), geo: z.object({ lat: z.number(), lng: z.number() }).optional(), lotIds: z.array(z.string()).default([]) });
+const CompteurBase = z.object({ siteId: z.string(), numero: Numero, libelle: z.string().optional(), typeTarif: z.enum(["DPP", "DMP", "PRO"]), puissanceKva: z.number().optional(), statut: z.enum(["actif", "resilie"]), regleRepartition: Regle, photoUrl: z.string().optional(), geo: z.object({ lat: z.number(), lng: z.number() }).optional(), lotIds: z.array(z.string()) });
+const CompteurBody = CompteurBase.extend({ typeTarif: z.enum(["DPP", "DMP", "PRO"]).default("DPP"), statut: z.enum(["actif", "resilie"]).default("actif"), regleRepartition: Regle.default("egal"), lotIds: z.array(z.string()).default([]) });
 
 r.get("/compteurs", roles(...TOUS), async (c) => {
   const db = c.get("db");
@@ -145,7 +148,7 @@ r.post("/compteurs", roles(...GESTION), async (c) => {
 });
 
 r.patch("/compteurs/:id", roles(...GESTION), async (c) => {
-  const { lotIds: _l, puissanceKva, ...b } = CompteurBody.partial().parse(await c.req.json());
+  const { lotIds: _l, puissanceKva, ...b } = CompteurBase.partial().parse(await c.req.json());
   const db = c.get("db");
   const [cpt] = await db.update(compteurs).set({ ...b, ...(puissanceKva !== undefined ? { puissanceKva: puissanceKva.toString() } : {}), modifieLe: new Date(), modifiePar: c.get("user").id }).where(and(eq(compteurs.id, c.req.param("id")), eq(compteurs.organisationId, c.get("orgId")))).returning();
   if (!cpt) introuvable();

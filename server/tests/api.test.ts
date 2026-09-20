@@ -440,3 +440,57 @@ describe("Lot 2 : rapports, export comptable, alertes serveur, cron", () => {
     expect(typeof cron.json.alertesNouvelles).toBe("number");
   });
 });
+
+describe("Lot 2 (suite) : comparaison entre sites, groupe multi-organisations", () => {
+  it("compare les sites du même type et signale les écarts", async () => {
+    // deux immeubles supplémentaires de même type avec surfaces pour la comparaison
+    const s2 = await api("/sites", { token: A.token, body: { nom: "Résidence Fann", type: "immeuble", surfaceM2: 400, geo: { lat: 14.69, lng: -17.46 } } });
+    const s3 = await api("/sites", { token: A.token, body: { nom: "Résidence Ngor", type: "immeuble", surfaceM2: 400 } });
+    await api(`/sites/${siteId}`, { token: A.token, method: "PATCH", body: { surfaceM2: 200 } });
+    for (const [sid, numero, montant] of [[s2.json.id, "14200000002", 8000], [s3.json.id, "14200000003", 8000]] as const) {
+      const c = await api("/compteurs", { token: A.token, body: { siteId: sid, numero, lotIds: [] } });
+      await api("/recharges", { token: A.token, body: { compteurId: c.json.id, date: "2026-09-10T10:00:00+00:00", montant } });
+    }
+    const r = await api("/rapports/mensuel/2026-09", { token: A.token });
+    const grp = r.json.comparaison.find((g: Json) => g.type === "immeuble");
+    expect(grp).toBeTruthy();
+    expect(grp.nbSites).toBe(4); // Almadies, Keur Gorgui (import), Fann, Ngor
+    expect(grp.moyenneCoutM2).toBeGreaterThan(0);
+    const almadies = grp.sites.find((x: Json) => x.siteId === siteId);
+    expect(almadies.ecartM2Pct).toBeGreaterThan(40); // 40 000 F sur 200 m² vs 8 000 F sur 400 m²
+    expect(r.json.signaux.some((x: string) => x.includes("coût au m²"))).toBe(true);
+    const snap = await api("/snapshot", { token: A.token });
+    expect(snap.json.sites.find((x: Json) => x.id === s2.json.id).geo).toEqual({ lat: 14.69, lng: -17.46 });
+  });
+
+  it("groupe : un même téléphone dans deux organisations, bascule et consolidation", async () => {
+    // l'admin de B invite le téléphone de l'admin de A comme gestionnaire
+    const inv = await api("/utilisateurs", { token: B.token, body: { nom: "Admin A chez B", telephone: "77 123 45 67", role: "gestionnaire" } });
+    expect(inv.status).toBe(201);
+    const mes = await api("/mes-organisations", { token: A.token });
+    expect(mes.json).toHaveLength(2);
+    expect(mes.json.find((o: Json) => o.courante).nom).toBe("SCI Almadies");
+    const conso = await api("/groupe/consolidation/2026-09", { token: A.token });
+    expect(conso.json.organisations).toHaveLength(2);
+    expect(conso.json.total.depense).toBeGreaterThan(0);
+    expect(conso.json.organisations[0].nom).toBe("SCI Almadies"); // triée par dépense
+    const b = await api("/basculer", { token: A.token, body: { organisationId: B.orgId } });
+    expect(b.status).toBe(200);
+    const me = await api("/auth/me", { token: b.json.accessToken });
+    expect(me.json.organisation.nom).toBe("Pharmacies Sud");
+    expect(me.json.utilisateur.role).toBe("gestionnaire");
+    // impossible de basculer vers une organisation étrangère
+    expect((await api("/basculer", { token: A.token, body: { organisationId: "inconnue" } })).status).toBe(400);
+  });
+});
+
+describe("régression : un PATCH partiel ne réinitialise pas les champs à valeur par défaut", () => {
+  it("site et compteur conservent type / tarif / règle", async () => {
+    const s = await api("/sites", { token: A.token, body: { nom: "Cour test", type: "cour commune" } });
+    const p = await api(`/sites/${s.json.id}`, { token: A.token, method: "PATCH", body: { geo: { lat: 14.7, lng: -17.4 } } });
+    expect(p.json.type).toBe("cour commune");
+    const c = await api("/compteurs", { token: A.token, body: { siteId: s.json.id, numero: "14200000099", typeTarif: "PRO", regleRepartition: "surface", lotIds: [] } });
+    const pc = await api(`/compteurs/${c.json.id}`, { token: A.token, method: "PATCH", body: { libelle: "Boutique" } });
+    expect(pc.json).toMatchObject({ typeTarif: "PRO", regleRepartition: "surface", statut: "actif", libelle: "Boutique" });
+  });
+});

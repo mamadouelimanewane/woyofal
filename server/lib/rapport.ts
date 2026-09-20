@@ -24,6 +24,8 @@ export interface RapportMensuel {
   alertes: { type: string; message: string; declencheeLe: string; traitee: boolean }[];
   tendance: { mois: string; depense: number; kwh: number }[];
   signaux: string[];
+  /** Comparaison entre sites du même type (EF-BI-02) : écart de chaque site à la moyenne de son groupe. */
+  comparaison: { type: string; nbSites: number; moyenneDepense: number; moyenneCoutM2: number | null; sites: { siteId: string; nom: string; depense: number; coutM2: number | null; ecartPct: number | null; ecartM2Pct: number | null }[] }[];
 }
 
 const bornes = (mois: string) => {
@@ -93,6 +95,25 @@ export async function rapportMensuel(db: Db, orgId: string, mois: string): Promi
     if (l.nbCompteurs > 0 && l.nbRecharges === 0) signaux.push(`${l.nom} : aucune recharge ce mois (${l.joursSansRecharge ?? "?"} jours sans recharge)`);
   }
 
+  // Comparaison entre sites comparables (même type, au moins 2 sites)
+  const parType = new Map<string, LigneSite[]>();
+  for (const l of lignes) parType.set(l.type, [...(parType.get(l.type) ?? []), l]);
+  const comparaison: RapportMensuel["comparaison"] = [];
+  for (const [type, grp] of parType) {
+    if (grp.length < 2) continue;
+    const moyenneDepense = grp.reduce((a, l) => a + l.depense, 0) / grp.length;
+    const avecM2 = grp.filter((l) => l.coutM2 != null);
+    const moyenneCoutM2 = avecM2.length >= 2 ? avecM2.reduce((a, l) => a + l.coutM2!, 0) / avecM2.length : null;
+    comparaison.push({
+      type, nbSites: grp.length, moyenneDepense: Math.round(moyenneDepense), moyenneCoutM2: moyenneCoutM2 == null ? null : Math.round(moyenneCoutM2),
+      sites: grp.map((l) => ({ siteId: l.siteId, nom: l.nom, depense: l.depense, coutM2: l.coutM2, ecartPct: pct(l.depense, moyenneDepense), ecartM2Pct: moyenneCoutM2 && l.coutM2 != null ? pct(l.coutM2, moyenneCoutM2) : null })).sort((a, b) => (b.ecartPct ?? 0) - (a.ecartPct ?? 0)),
+    });
+    for (const x of grp) {
+      const e = moyenneCoutM2 && x.coutM2 != null ? pct(x.coutM2, moyenneCoutM2) : pct(x.depense, moyenneDepense);
+      if (e != null && e >= 40 && x.depense >= 20000) signaux.push(`${x.nom} : ${moyenneCoutM2 && x.coutM2 != null ? "coût au m²" : "dépense"} ${e > 0 ? "+" : ""}${e} % par rapport aux autres ${type}s`);
+    }
+  }
+
   return {
     organisation: { id: org.id, nom: org.nom, type: org.type },
     mois, debut: debut.toISOString(), fin: fin.toISOString(), genereLe: new Date().toISOString(),
@@ -102,6 +123,7 @@ export async function rapportMensuel(db: Db, orgId: string, mois: string): Promi
     alertes: al.map((x) => ({ type: x.type, message: x.message, declencheeLe: x.declencheeLe.toISOString(), traitee: !!x.traiteeLe })),
     tendance,
     signaux,
+    comparaison,
   };
 }
 

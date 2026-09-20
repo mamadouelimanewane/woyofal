@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, Building2, Gauge, LayoutDashboard, LogOut, Menu, Receipt, Settings, Store, Users, Wallet, Zap } from "lucide-react";
-import { useState } from "react";
+import { BarChart3, Bell, Layers, Building2, Gauge, LayoutDashboard, LogOut, Menu, Receipt, Settings, Store, Users, Wallet, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api, ecrireSession } from "../api/client";
+import { signaler } from "./erreur";
 import { alertesDeOrg, orgCourante, userCourant, useStore } from "../store/useStore";
 
 const ROLE_LIBELLE: Record<string, string> = { superadmin: "Super-admin", admin: "Administrateur", gestionnaire: "Gestionnaire", agent: "Agent de site", occupant: "Occupant", lecture: "Lecture seule" };
@@ -11,7 +13,10 @@ export default function Layout() {
   const user = userCourant(s);
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
+  const [orgs, setOrgs] = useState<{ id: string; nom: string; courante: boolean }[]>([]);
+  useEffect(() => { api("/mes-organisations").then(setOrgs).catch(() => setOrgs([])); }, [org?.id]);
   if (!org || !user) return null;
+  const basculer = (organisationId: string) => api("/basculer", { body: { organisationId } }).then((j) => { ecrireSession({ accessToken: j.accessToken, refreshToken: j.refreshToken }); nav("/"); return s.charger(); }).catch(signaler);
   const nbAlertes = alertesDeOrg(s, org.id).filter((a) => !a.traitee).length;
   const immo = org.type === "immo";
 
@@ -27,6 +32,7 @@ export default function Layout() {
       : []),
     { to: "/alertes", label: "Alertes", icon: Bell, badge: nbAlertes },
     { to: "/rapports", label: "Rapports", icon: BarChart3 },
+    ...(orgs.length > 1 ? [{ to: "/groupe", label: "Groupe", icon: Layers }] : []),
     { to: "/grille", label: "Grille tarifaire", icon: Gauge },
     { to: "/parametres", label: "Paramètres", icon: Settings },
   ];
@@ -57,8 +63,14 @@ export default function Layout() {
           <div className="text-xs text-slate-400 mt-1">Parc de compteurs Woyofal</div>
         </div>
         <div className="px-5 py-3 border-b border-slate-800">
-          <div className="text-sm font-medium truncate">{org.nom}</div>
-          <div className="text-xs text-slate-400">{immo ? "Édition Immo" : "Édition Entreprise"}</div>
+          {orgs.length > 1 ? (
+            <select className="w-full bg-slate-800 text-white text-sm rounded-md px-2 py-1.5 border border-slate-700" value={org.id} onChange={(e) => basculer(e.target.value)} title="Changer d'organisation">
+              {orgs.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}
+            </select>
+          ) : (
+            <div className="text-sm font-medium truncate">{org.nom}</div>
+          )}
+          <div className="text-xs text-slate-400 mt-1">{immo ? "Édition Immo" : "Édition Entreprise"}</div>
         </div>
         {menu}
         <div className="mt-auto px-5 py-4 border-t border-slate-800 text-sm">

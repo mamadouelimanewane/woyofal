@@ -19,6 +19,7 @@ import admin from "./routes/admin.js";
 import snapshot from "./routes/snapshot.js";
 import abonnement from "./routes/abonnement.js";
 import rapports from "./routes/rapports.js";
+import groupe from "./routes/groupe.js";
 
 export const app = new Hono<Vars>().basePath("/api");
 
@@ -48,6 +49,7 @@ app.route("/", occupants);
 app.route("/", snapshot);
 app.route("/", abonnement);
 app.route("/", rapports);
+app.route("/", groupe);
 
 app.notFound((c) => c.json({ erreur: "Route inconnue" }, 404));
 app.onError((err, c) => {

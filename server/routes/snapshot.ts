@@ -44,7 +44,7 @@ r.get("/snapshot", roles(...TOUS), async (c) => {
   return c.json({
     organisation: { id: org.id, nom: org.nom, type: org.type, plan: org.plan, ninea: org.ninea ?? undefined, statut: org.statut, finEssai: org.finEssai, parametres: org.parametres },
     utilisateurs: us.map(publicUser),
-    sites: sitesVisibles.map((s) => ({ id: s.id, organisationId: s.organisationId, nom: s.nom, type: s.type, adresse: s.adresse ?? "", surfaceM2: s.surfaceM2 ?? undefined, budgetMensuel: s.budgetMensuel ?? undefined, responsable: s.responsable ?? undefined })),
+    sites: sitesVisibles.map((s) => ({ id: s.id, organisationId: s.organisationId, nom: s.nom, type: s.type, adresse: s.adresse ?? "", geo: s.geo ?? undefined, surfaceM2: s.surfaceM2 ?? undefined, budgetMensuel: s.budgetMensuel ?? undefined, responsable: s.responsable ?? undefined })),
     lots: lotsVisibles.map((l) => ({ id: l.id, siteId: l.siteId, reference: l.reference, surfaceM2: l.surfaceM2 ?? undefined, etage: l.etage ?? undefined })),
     compteurs: cptVisibles.map((x) => ({ id: x.id, siteId: x.siteId, numero: x.numero, libelle: x.libelle ?? undefined, typeTarif: x.typeTarif, puissanceKva: x.puissanceKva == null ? undefined : num(x.puissanceKva), statut: x.statut, partage: x.partage })),
     rattachements: cl.filter((x) => cptIds.has(x.compteurId)).map((x) => ({ compteurId: x.compteurId, lotId: x.lotId, forfait: x.forfait ?? undefined })),

@@ -34,7 +34,7 @@ async function inscrire(telephone: string, nom: string, org: { nom: string; type
 async function chargerOrg(orgDemo: (typeof demo.ORGANISATIONS)[number], token: string) {
   const ids = { sites: new Map<string, string>(), lots: new Map<string, string>(), compteurs: new Map<string, string>() };
   for (const s of demo.SITES.filter((x) => x.organisationId === orgDemo.id)) {
-    const r = await api("/sites", { nom: s.nom, type: s.type, adresse: s.adresse, surfaceM2: s.surfaceM2, budgetMensuel: s.budgetMensuel, responsable: s.responsable }, token);
+    const r = await api("/sites", { nom: s.nom, type: s.type, adresse: s.adresse, geo: s.geo, surfaceM2: s.surfaceM2, budgetMensuel: s.budgetMensuel, responsable: s.responsable }, token);
     ids.sites.set(s.id, r.id);
   }
   for (const l of demo.LOTS.filter((x) => ids.sites.has(x.siteId))) {

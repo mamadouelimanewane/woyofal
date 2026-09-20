@@ -15,14 +15,15 @@ export const UTILISATEURS: Utilisateur[] = [
 ];
 
 export const SITES: Site[] = [
-  { id: "s-imm1", organisationId: "org-immo", nom: "Immeuble Sérigne Fallou", type: "immeuble", adresse: "Sacré-Cœur 3, Dakar", surfaceM2: 620 },
-  { id: "s-cour1", organisationId: "org-immo", nom: "Cour commune Médina", type: "cour commune", adresse: "Rue 22 x 31, Médina", surfaceM2: 280 },
+  { id: "s-imm1", organisationId: "org-immo", nom: "Immeuble Sérigne Fallou", type: "immeuble", adresse: "Sacré-Cœur 3, Dakar", surfaceM2: 620, geo: { lat: 14.7128, lng: -17.4622 } },
+  { id: "s-cour1", organisationId: "org-immo", nom: "Cour commune Médina", type: "cour commune", adresse: "Rue 22 x 31, Médina", surfaceM2: 280, geo: { lat: 14.6795, lng: -17.4520 } },
   ...["Sacré-Cœur", "Liberté 6", "Ouakam", "Pikine", "Guédiawaye", "Rufisque", "Thiès", "Mbour"].map((q, i) => ({
     id: `s-ph${i + 1}`,
     organisationId: "org-ent",
     nom: `Pharmacie ${q}`,
     type: "pharmacie",
     adresse: q,
+    geo: [[14.7167, -17.4677], [14.7215, -17.4633], [14.7226, -17.4893], [14.7549, -17.3914], [14.7691, -17.4073], [14.7154, -17.2735], [14.7910, -16.9256], [14.4222, -16.9640]].map(([lat, lng]) => ({ lat, lng }))[i],
     surfaceM2: 60 + i * 12,
     budgetMensuel: 90000 + (i % 3) * 20000,
     responsable: ["M. Ba", "Mme Sy", "M. Diallo", "Mme Ndour", "M. Gueye", "Mme Faye", "M. Sow", "Mme Kane"][i],

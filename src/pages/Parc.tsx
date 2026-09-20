@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Building2, Plus, Share2, Upload, Zap } from "lucide-react";
+import { Building2, MapPin, Plus, Share2, Upload, Zap } from "lucide-react";
 import { Badge, Card, Empty, Field, Modal, PageTitle } from "../components/ui";
 import RechargeForm from "../components/RechargeForm";
 import ImportModal from "../components/ImportModal";
+import CarteSites from "../components/CarteSites";
 import { signaler } from "../components/erreur";
 import { compteursDeSite, cumulPeriode, depenseSiteMois, moisCourant, orgCourante, rechargesDeCompteur, sitesDeOrg, useStore } from "../store/useStore";
 import { fmtF, fmtKwh } from "../lib/tarif";
@@ -48,6 +49,11 @@ export default function Parc() {
         </div>
 
         <div className="space-y-4">
+          {sites.some((x) => x.geo) && (
+            <Card title="Carte des sites">
+              <CarteSites selection={siteId} onSelect={(id) => setParams({ site: id })} points={sites.map((x) => { const dep = depenseSiteMois(s, x.id, mois); return { site: x, depense: dep, ratio: x.budgetMensuel ? dep / x.budgetMensuel : null, nbCompteurs: compteursDeSite(s, x.id).length }; })} />
+            </Card>
+          )}
           {!site ? (
             <Card><Empty><Building2 className="mx-auto mb-2 text-slate-300" size={36} />Sélectionnez {immo ? "un immeuble" : "un site"} pour voir ses compteurs.</Empty></Card>
           ) : (
@@ -56,6 +62,10 @@ export default function Parc() {
                 title={<span>{site.nom} <span className="text-slate-400 font-normal text-sm">· {site.adresse}</span></span>}
                 action={
                   <div className="flex gap-2">
+                    <button className="btn-secondary" title={site.geo ? `Position enregistrée (${site.geo.lat.toFixed(4)}, ${site.geo.lng.toFixed(4)}) — cliquer pour la remplacer par ma position` : "Enregistrer ma position GPS comme position du site"} onClick={() => {
+                      if (!navigator.geolocation) return alert("Géolocalisation indisponible sur cet appareil.");
+                      navigator.geolocation.getCurrentPosition((pos) => s.updateSite(site.id, { geo: { lat: pos.coords.latitude, lng: pos.coords.longitude } }).catch(signaler), () => alert("Position refusée ou indisponible."), { enableHighAccuracy: true, timeout: 10000 });
+                    }}><MapPin size={14} className={site.geo ? "text-emerald-600" : ""} /> {site.geo ? "Repositionner" : "Géolocaliser"}</button>
                     {immo && <button className="btn-secondary" onClick={() => setModal("lot")}><Plus size={14} /> Lot</button>}
                     <button className="btn-secondary" onClick={() => setModal("compteur")}><Plus size={14} /> Compteur</button>
                   </div>

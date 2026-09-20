@@ -31,6 +31,7 @@ export interface Site {
   nom: string;
   type: string; // immeuble, cité, agence, pharmacie, école…
   adresse: string;
+  geo?: { lat: number; lng: number };
   surfaceM2?: number;
   budgetMensuel?: number;
   responsable?: string;
