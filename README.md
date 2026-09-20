@@ -120,4 +120,5 @@ DATABASE_URL=postgres://… npm run db:seed      # (optionnel) démo sur Neon
 | Application mobile agent (Expo Go) : compteurs, recharge par SMS collé / presse-papiers, relevés, hors ligne | ✅ v0.1 |
 | Capture SMS automatique Android (module natif, development build EAS) | ⏳ |
 | Portail occupant complet (historique, transparence du compteur, déclaration, signalement) | ✅ |
-| OCR des tickets, recharge groupée | ⏳ |
+| OCR des tickets et des index (Claude vision si clé, sinon Tesseract), prévision de coupure, portail FR/WO, tableau de bord occupant | ✅ |
+| Recharge groupée (partenariat agrégateur) | ⏳ |
