@@ -9,6 +9,9 @@ export default function Connexion() {
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
   const [etape, setEtape] = useState<"telephone" | "code">("telephone");
+  const [mode, setMode] = useState<"otp" | "email">("otp");
+  const [email, setEmail] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
   const [erreur, setErreur] = useState("");
   const [occupe, setOccupe] = useState(false);
 
@@ -25,6 +28,22 @@ export default function Connexion() {
           <Text style={{ color: "#94a3b8", marginTop: 4 }}>Application agent · compteurs Woyofal</Text>
         </View>
         <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 18 }}>
+          <View style={{ flexDirection: "row", marginBottom: 6 }}>
+            {(["otp", "email"] as const).map((m) => (
+              <Text key={m} onPress={() => { setMode(m); setErreur(""); }} style={{ flex: 1, textAlign: "center", paddingVertical: 8, fontWeight: "700", color: mode === m ? C.teal : C.gris, borderBottomWidth: 2, borderBottomColor: mode === m ? C.teal : C.bordure }}>{m === "otp" ? "Téléphone" : "E-mail"}</Text>
+            ))}
+          </View>
+          {mode === "email" ? (
+            <>
+              <Libelle>E-mail</Libelle>
+              <Champ value={email} onChangeText={setEmail} placeholder="agent@demo.kuran.sn" keyboardType="email-address" autoCapitalize="none" />
+              <Libelle>Mot de passe</Libelle>
+              <Champ value={motDePasse} onChangeText={setMotDePasse} placeholder="••••••••" secureTextEntry />
+              {erreur ? <Text style={{ color: C.rouge, marginTop: 8 }}>{erreur}</Text> : null}
+              <Bouton titre="Se connecter" occupe={occupe} disabled={!email.includes("@") || motDePasse.length < 10} onPress={() => lancer(() => s.connecterEmail(email.trim(), motDePasse))} />
+            </>
+          ) : (
+          <>
           <Libelle>Numéro de téléphone</Libelle>
           <Champ value={telephone} onChangeText={setTelephone} placeholder="77 000 00 00" keyboardType="phone-pad" editable={etape === "telephone"} />
           {etape === "code" && (
@@ -42,6 +61,8 @@ export default function Connexion() {
               <Bouton titre="Se connecter" occupe={occupe} disabled={code.length !== 6} onPress={() => lancer(() => s.connecter(telephone, code))} />
               <Bouton titre="Changer de numéro" variante="secondaire" onPress={() => { setEtape("telephone"); setCode(""); }} />
             </>
+          )}
+          </>
           )}
         </View>
         <Text style={{ color: "#64748b", fontSize: 11, textAlign: "center", marginTop: 16 }}>Demandez une invitation à votre gestionnaire si votre numéro n'est pas reconnu.</Text>

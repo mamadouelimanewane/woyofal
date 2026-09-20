@@ -14,7 +14,17 @@ npm test           # 12 tests moteur tarifaire + 33 tests d'intégration API (PG
 npm run typecheck  # front + serveur
 ```
 
-Connexion démo : **77 123 45 67** (Gérance Keur Gorgui, Immo) ou **78 111 22 33** (Pharmacies Ndiaye & Fils, Entreprise). Sans fournisseur SMS configuré, le code OTP s'affiche à l'écran.
+## Accès de démonstration (mot de passe unique `Dakarsenegal`, script `server/db/demo-acces.ts`)
+
+| Rôle | E-mail | Téléphone (OTP affiché à l'écran) |
+|---|---|---|
+| Super-admin (console) | mamadouastelwane@gmail.com | — (mot de passe uniquement) |
+| Administratrice Immo — Gérance Keur Gorgui | immo@demo.kuran.sn | 77 123 45 67 |
+| Agent de site Immo | agent@demo.kuran.sn | 76 987 65 43 |
+| Administrateur Entreprise — Pharmacies Ndiaye & Fils | entreprise@demo.kuran.sn | 78 111 22 33 |
+| DAF Entreprise (lecture seule) | daf@demo.kuran.sn | 77 444 55 66 |
+
+URLs : gestion et console https://woyofal.vercel.app · app agent (web de test) https://kuran-agent.vercel.app · API https://woyofal.vercel.app/api/sante
 
 ## Architecture (Lot 1 — v0.2)
 

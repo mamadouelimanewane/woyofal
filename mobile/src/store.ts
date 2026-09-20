@@ -34,6 +34,7 @@ interface State {
   charger: () => Promise<void>;
   demanderOtp: (telephone: string) => Promise<{ devCode?: string }>;
   connecter: (telephone: string, code: string) => Promise<void>;
+  connecterEmail: (email: string, motDePasse: string) => Promise<void>;
   deconnecter: () => Promise<void>;
   enregistrerRecharge: (corps: Record<string, unknown>) => Promise<{ enLigne: boolean; resultat?: any }>;
   enregistrerReleve: (corps: Record<string, unknown>) => Promise<{ enLigne: boolean }>;
@@ -81,6 +82,11 @@ export const useStore = create<State>()((set, get) => ({
   demanderOtp: (telephone) => api("/auth/otp/request", { body: { telephone }, auth: false }),
   connecter: async (telephone, code) => {
     const j = await api("/auth/otp/verify", { body: { telephone, code }, auth: false });
+    await ecrireSession({ accessToken: j.accessToken, refreshToken: j.refreshToken });
+    await get().charger();
+  },
+  connecterEmail: async (email, motDePasse) => {
+    const j = await api("/auth/login", { body: { email, motDePasse }, auth: false });
     await ecrireSession({ accessToken: j.accessToken, refreshToken: j.refreshToken });
     await get().charger();
   },
