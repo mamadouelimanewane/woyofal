@@ -90,6 +90,23 @@ r.patch("/organisations/:id", async (c) => {
   return c.json({ ...o, cleApi: undefined });
 });
 
+/** Comptes : liste (recherche par téléphone / e-mail / nom) et réinitialisation d'accès par le super-admin. */
+r.get("/utilisateurs", async (c) => {
+  const q = (c.req.query("q") ?? "").toLowerCase();
+  const rows = await c.get("db").select().from(utilisateurs).orderBy(desc(utilisateurs.creeLe)).limit(500);
+  return c.json(rows.filter((u) => !q || u.telephone.includes(q) || (u.email ?? "").includes(q) || u.nom.toLowerCase().includes(q)).map(({ motDePasseHash: _h, ...u }) => u));
+});
+
+r.post("/utilisateurs/:id/acces", async (c) => {
+  const b = z.object({ email: z.email().optional(), motDePasse: z.string().min(10).optional(), actif: z.boolean().optional() }).parse(await c.req.json());
+  const db = c.get("db");
+  const [u] = await db.update(utilisateurs).set({ ...(b.email ? { email: b.email.toLowerCase() } : {}), ...(b.motDePasse ? { motDePasseHash: hacherMotDePasse(b.motDePasse) } : {}), ...(b.actif !== undefined ? { actif: b.actif } : {}), modifieLe: new Date(), modifiePar: c.get("user").id }).where(eq(utilisateurs.id, c.req.param("id"))).returning();
+  if (!u) throw new HTTPException(404, { message: "Utilisateur inconnu" });
+  await auditer(db, { organisationId: u.organisationId, utilisateurId: c.get("user").id, action: "acces_modifie", entite: "utilisateur", entiteId: u.id, apres: { email: b.email, motDePasse: !!b.motDePasse, actif: b.actif } });
+  const { motDePasseHash: _h, ...rest } = u;
+  return c.json(rest);
+});
+
 // ---------- Grille tarifaire ----------
 const GrilleBody = z.object({ dateEffet: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), libelle: z.string().min(3), tranche1: z.number().positive(), tranche2: z.number().positive(), tranche3: z.number().positive(), seuilT1: z.number().int().positive(), seuilT2: z.number().int().positive(), redevance: z.number().int().nonnegative(), seuilTva: z.number().int().positive(), tauxTva: z.number().min(0).max(1), tauxTaxeCommunale: z.number().min(0).max(1), periode: z.enum(["mois", "bimestre"]).default("mois") });
 
