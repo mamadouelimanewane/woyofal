@@ -11,6 +11,7 @@ import { alertes, compteurLots, compteurs, lots, occupants, organisations, quote
 import { GESTION, TOUS, authentifie, roles, siteAutorise, type Vars } from "../lib/auth.js";
 import { grilles } from "../lib/tarif-service.js";
 import { num } from "../lib/util.js";
+import { prevoir } from "../../src/lib/prevision.js";
 import { publicUser } from "./auth.js";
 
 const r = new Hono<Vars>();
@@ -46,7 +47,7 @@ r.get("/snapshot", roles(...TOUS), async (c) => {
     utilisateurs: us.map(publicUser),
     sites: sitesVisibles.map((s) => ({ id: s.id, organisationId: s.organisationId, nom: s.nom, type: s.type, adresse: s.adresse ?? "", geo: s.geo ?? undefined, surfaceM2: s.surfaceM2 ?? undefined, budgetMensuel: s.budgetMensuel ?? undefined, responsable: s.responsable ?? undefined })),
     lots: lotsVisibles.map((l) => ({ id: l.id, siteId: l.siteId, reference: l.reference, surfaceM2: l.surfaceM2 ?? undefined, etage: l.etage ?? undefined })),
-    compteurs: cptVisibles.map((x) => ({ id: x.id, siteId: x.siteId, numero: x.numero, libelle: x.libelle ?? undefined, typeTarif: x.typeTarif, puissanceKva: x.puissanceKva == null ? undefined : num(x.puissanceKva), statut: x.statut, partage: x.partage })),
+    compteurs: cptVisibles.map((x) => ({ id: x.id, siteId: x.siteId, numero: x.numero, libelle: x.libelle ?? undefined, typeTarif: x.typeTarif, puissanceKva: x.puissanceKva == null ? undefined : num(x.puissanceKva), statut: x.statut, partage: x.partage, prevision: prevoir(rs.filter((r) => r.compteurId === x.id).slice(0, 40).map((r) => ({ date: r.date, kwh: num(r.kwh) }))) })),
     rattachements: cl.filter((x) => cptIds.has(x.compteurId)).map((x) => ({ compteurId: x.compteurId, lotId: x.lotId, forfait: x.forfait ?? undefined })),
     regles: cptVisibles.map((x) => ({ compteurId: x.id, regle: x.regleRepartition })),
     occupants: os.filter((o) => lotIds.has(o.lotId)).map((o) => ({ id: o.id, lotId: o.lotId, nom: o.nom, telephone: o.telephone ?? "", dateEntree: o.dateEntree, dateSortie: o.dateSortie ?? undefined, caution: o.caution ?? undefined })),

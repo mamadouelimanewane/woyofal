@@ -175,7 +175,9 @@ export async function relancer(db: Db, orgId: string, occupantIds?: string[], me
       const [deja] = await db.select({ id: notifications.id }).from(notifications).where(and(eq(notifications.occupantId, o.id), eq(notifications.modele, `relance_${palier}`), sql`${notifications.creeLe} > now() - interval '20 days'`));
       if (deja) continue;
     }
-    const corps = message ?? `${org.nom} : vous devez ${du.toLocaleString("fr-FR")} F d'électricité (quote-part Woyofal). Payez par Wave ou Orange Money : ${lienPayerOccupant(o.id)}`;
+    const corps = message ?? (org.parametres?.langue === "wo"
+      ? `${org.nom} : dangay ñàkk ${du.toLocaleString("fr-FR")} F ci kurañ (Woyofal). Feyal ak Wave walla Orange Money : ${lienPayerOccupant(o.id)}`
+      : `${org.nom} : vous devez ${du.toLocaleString("fr-FR")} F d'électricité (quote-part Woyofal). Payez par Wave ou Orange Money : ${lienPayerOccupant(o.id)}`);
     await notifier(db, { organisationId: orgId, destinataire: o.telephone, occupantId: o.id, modele: `relance_${palier}`, corps });
     n++;
   }

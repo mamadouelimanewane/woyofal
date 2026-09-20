@@ -4,7 +4,7 @@ import { Check, MessageSquareWarning } from "lucide-react";
 import { api } from "../api/client";
 import { Badge, Card, PageTitle } from "../components/ui";
 import { alertesDeOrg, orgCourante, useStore } from "../store/useStore";
-import { signaler } from "../components/erreur";
+import { demander, signaler } from "../components/erreur";
 
 const LIBELLE: Record<string, string> = { budget_80: "Budget 80 %", budget_100: "Budget dépassé", inactif: "Inactivité", anomalie: "Anomalie", redevance: "Redevance", incident: "Signalement" };
 
@@ -44,7 +44,7 @@ export default function Alertes() {
                   <Badge tone={a.type === "incident" ? "amber" : a.type === "budget_100" || a.type === "anomalie" ? "red" : "blue"}>{LIBELLE[a.type] ?? a.type}</Badge>
                   <span className="flex-1 text-sm">{a.message}<span className="text-xs text-slate-500"> · {new Date(a.declencheeLe).toLocaleDateString("fr-FR")}</span></span>
                   {a.siteId && <Link to={`/parc?site=${a.siteId}`} className="text-sm text-brand-700">Voir</Link>}
-                  <button className="btn-ghost p-1.5" title="Marquer traitée" onClick={() => { const c = prompt("Commentaire (facultatif) :") ?? undefined; api(`/alertes/${a.id}`, { method: "PATCH", body: { traitee: true, commentaire: c } }).then(charger, signaler); }}><Check size={16} /></button>
+                  <button className="btn-ghost p-1.5" title="Marquer traitée" onClick={async () => { const c = await demander("Marquer l'alerte traitée", { texte: a.message, placeholder: "Commentaire (facultatif)", confirmer: "Traitée" }); if (c !== null) api(`/alertes/${a.id}`, { method: "PATCH", body: { traitee: true, commentaire: c || undefined } }).then(charger, signaler); }}><Check size={16} /></button>
                 </li>
               ))}
             </ul>

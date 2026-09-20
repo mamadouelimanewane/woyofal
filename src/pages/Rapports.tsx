@@ -4,6 +4,7 @@ import { Download, FileText, TrendingDown, TrendingUp } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge, Card, PageTitle, Stat } from "../components/ui";
 import { api, lireSession } from "../api/client";
+import { toast } from "../components/erreur";
 import { fmtF, fmtKwh } from "../lib/tarif";
 import { moisCourant, orgCourante, useStore } from "../store/useStore";
 
@@ -20,7 +21,7 @@ interface Rapport {
 async function telecharger(path: string, nom: string) {
   const s = lireSession();
   const res = await fetch(`/api${path}`, { headers: s ? { authorization: `Bearer ${s.accessToken}` } : {} });
-  if (!res.ok) return alert(`Téléchargement impossible (${res.status})`);
+  if (!res.ok) return toast(`Téléchargement impossible (${res.status})`, "erreur");
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement("a");
   a.href = url; a.download = nom; a.click();

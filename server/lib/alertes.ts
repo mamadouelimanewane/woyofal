@@ -8,6 +8,7 @@ import type { Db } from "../db/index.js";
 import { alertes, compteurs, organisations, recharges, sites, utilisateurs } from "../db/schema.js";
 import { notifier } from "./notifications.js";
 import { num, uid, urlPublique } from "./util.js";
+import { prevoir } from "../../src/lib/prevision.js";
 
 export interface AlerteDetectee { cle: string; type: string; siteId: string | null; compteurId: string | null; message: string }
 
@@ -55,6 +56,11 @@ export async function detecterAlertes(db: Db, orgId: string, maintenant = new Da
         const moyMensuelle = avant.reduce((a, r) => a + r.montant, 0) / 3;
         const projete = (duMois.filter((r) => r.compteurId === c.id).reduce((a, r) => a + r.montant, 0) * joursMois) / jourDuMois;
         if (jourDuMois >= 7 && moyMensuelle > 0 && projete > moyMensuelle * 1.5) out.push({ cle: `derive-${c.id}-${m}`, type: "anomalie", siteId: s.id, compteurId: c.id, message: `${s.nom} — ${c.libelle ?? c.numero} : dépense projetée +${Math.round((projete / moyMensuelle - 1) * 100)} % vs moyenne 3 mois` });
+      }
+      // Solde estimé faible (prévision) : coupure probable sous 2 jours
+      const prev = prevoir(hist.map((r) => ({ date: r.date, kwh: num(r.kwh) })), maintenant);
+      if (prev && prev.nbRecharges >= 3 && prev.joursRestants != null && prev.joursRestants <= 2 && !duMois.some((r) => r.compteurId === c.id && (maintenant.getTime() - r.date.getTime()) < 86400_000)) {
+        out.push({ cle: `solde-${c.id}-${prev.dateZero}`, type: "solde_faible", siteId: s.id, compteurId: c.id, message: `${s.nom} — ${c.libelle ?? c.numero} : solde estimé ${prev.soldeEstime} kWh, coupure probable ${prev.joursRestants === 0 ? "aujourd'hui" : `dans ${prev.joursRestants} j`} (≈ ${prev.kwhParJour} kWh/jour)` });
       }
       // Fin de mois : aucune recharge ce mois → redevance non réglée, cumul le mois prochain
       if (jourDuMois >= joursMois - 3 && !duMois.some((r) => r.compteurId === c.id) && hist.length > 0) out.push({ cle: `redevance-${c.id}-${m}`, type: "redevance", siteId: s.id, compteurId: c.id, message: `${s.nom} — ${c.libelle ?? c.numero} : aucune recharge ce mois, la redevance sera prélevée sur la prochaine` });

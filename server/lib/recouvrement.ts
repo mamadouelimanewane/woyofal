@@ -27,8 +27,11 @@ export async function enregistrerPaiementOccupant(db: Db, i: PaiementOccupantInp
   await db.update(quotesParts).set({ statut: "payee", datePaiement: i.date, moyenPaiement: i.moyen, referencePaiement: i.reference, quittanceNumero: numero, modifieLe: new Date(), modifiePar: i.utilisateurId }).where(inArray(quotesParts.id, qps.map((q) => q.id)));
   await auditer(db, { organisationId: i.organisationId, utilisateurId: i.utilisateurId, action: "payer", entite: "occupant", entiteId: i.occupant.id, apres: { montant, moyen: i.moyen, quittance: numero, enLigne: i.utilisateurId === null } });
   if (i.occupant.telephone && i.occupant.consentementNotifications) {
-    const [org] = await db.select({ nom: organisations.nom }).from(organisations).where(eq(organisations.id, i.organisationId));
-    await notifier(db, { organisationId: i.organisationId, destinataire: i.occupant.telephone, occupantId: i.occupant.id, modele: "quittance", corps: `${org.nom} : paiement de ${montant.toLocaleString("fr-FR")} F reçu (${i.moyen}). Quittance n° ${numero} : ${quittanceUrl}` });
+    const [org] = await db.select({ nom: organisations.nom, p: organisations.parametres }).from(organisations).where(eq(organisations.id, i.organisationId));
+    const corps = org.p?.langue === "wo"
+      ? `${org.nom} : jot nanu sa fey bu ${montant.toLocaleString("fr-FR")} F (${i.moyen}). Quittance n° ${numero} : ${quittanceUrl}`
+      : `${org.nom} : paiement de ${montant.toLocaleString("fr-FR")} F reçu (${i.moyen}). Quittance n° ${numero} : ${quittanceUrl}`;
+    await notifier(db, { organisationId: i.organisationId, destinataire: i.occupant.telephone, occupantId: i.occupant.id, modele: "quittance", corps });
   }
   return { paiement, quittanceNumero: numero, quittanceUrl, montant };
 }

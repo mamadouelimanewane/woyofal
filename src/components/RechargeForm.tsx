@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { MessageSquareText } from "lucide-react";
+import { Camera, MessageSquareText } from "lucide-react";
+import { api } from "../api/client";
+import { toast } from "./erreur";
 import { Badge, Field, Modal } from "./ui";
 import { compteursDeOrg, cumulPeriode, orgCourante, useStore } from "../store/useStore";
 import { calculerRecharge, clePeriode, fmtF, fmtKwh, grilleEnVigueur } from "../lib/tarif";
@@ -22,6 +24,27 @@ export default function RechargeForm({ compteurId: initial, onClose }: { compteu
   const [smsOpen, setSmsOpen] = useState(false);
   const [refacturer, setRefacturer] = useState(false);
   const [kwhTicket, setKwhTicket] = useState<number | undefined>();
+  const [ocrEnCours, setOcrEnCours] = useState(false);
+
+  /** Photo du ticket → OCR serveur (Claude si clé configurée, sinon Tesseract) → champs préremplis, à vérifier. */
+  async function lireTicket(fichier: File) {
+    setErreur("");
+    setOcrEnCours(true);
+    try {
+      const base64 = await new Promise<string>((res, rej) => { const fr = new FileReader(); fr.onerror = () => rej(new Error("Lecture du fichier impossible")); fr.onload = () => res(String(fr.result)); fr.readAsDataURL(fichier); });
+      const r = await api("/recharges/ocr", { body: { image: base64, mediaType: fichier.type || "image/jpeg", mode: "ticket" } });
+      if (r.montant) setMontant(Math.round(r.montant));
+      if (r.kwh) setKwhTicket(r.kwh);
+      if (r.code) setCode(r.code);
+      if (r.compteurId) setCompteurId(r.compteurId);
+      else if (r.compteur) setErreur(`Compteur ${r.compteur} lu sur le ticket mais inconnu dans votre parc.`);
+      if (r.date) setDate(`${r.date}T12:00`);
+      setCanal("ocr");
+      toast(`Ticket lu (${r.moteur}, confiance ${Math.round(r.confiance * 100)} %) : vérifiez les valeurs avant d'enregistrer`, r.confiance >= 0.7 ? "succes" : "info");
+    } catch (e: any) {
+      setErreur(e?.message ?? "Lecture impossible");
+    } finally { setOcrEnCours(false); }
+  }
   const [erreur, setErreur] = useState("");
 
   const compteur = compteurs.find((c) => c.id === compteurId);
@@ -85,6 +108,10 @@ export default function RechargeForm({ compteurId: initial, onClose }: { compteu
           <button className="btn-secondary w-full justify-center" onClick={() => setSmsOpen(!smsOpen)}>
             <MessageSquareText size={16} /> Coller le SMS Wave / Orange Money
           </button>
+          <label className={`btn-secondary w-full justify-center cursor-pointer ${ocrEnCours ? "opacity-60" : ""}`}>
+            <Camera size={16} /> {ocrEnCours ? "Lecture du ticket…" : "Photographier le ticket Woyofal"}
+            <input type="file" accept="image/*" capture="environment" className="hidden" disabled={ocrEnCours} onChange={(e) => e.target.files?.[0] && lireTicket(e.target.files[0])} />
+          </label>
           {smsOpen && (
             <div className="space-y-2">
               <textarea className="input h-28" value={sms} onChange={(e) => setSms(e.target.value)} placeholder={EXEMPLE_SMS} />

@@ -8,7 +8,7 @@ import { api, ecrireSession, lireSession } from "./api";
 
 export interface Site { id: string; nom: string; type: string; adresse: string }
 export interface Lot { id: string; siteId: string; reference: string }
-export interface Compteur { id: string; siteId: string; numero: string; libelle?: string; typeTarif: string; statut: string; partage: boolean }
+export interface Compteur { id: string; siteId: string; numero: string; libelle?: string; typeTarif: string; statut: string; partage: boolean; prevision?: { kwhParJour: number; soldeEstime: number; joursRestants: number | null; dateZero: string | null; nbRecharges: number; kwhPourFinDeMois: number } | null }
 export interface Recharge { id: string; compteurId: string; date: string; montant: number; kwh: number; trancheAtteinte: number; canal: string }
 export interface Utilisateur { id: string; nom: string; role: string; telephone: string }
 

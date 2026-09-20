@@ -34,7 +34,14 @@
       "backgroundColor": "#f1f5f9"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "KURAÑ utilise l'appareil photo pour lire les tickets Woyofal et les index des compteurs.",
+          "photosPermission": "KURAÑ accède aux photos pour lire un ticket enregistré."
+        }
+      ]
     ],
     "scheme": "kuran",
     "splash": {

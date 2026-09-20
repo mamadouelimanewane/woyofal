@@ -5,7 +5,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Badge, Card, Field, PageTitle, Stat, fmtDate, fmtMois } from "../components/ui";
 import RechargeForm from "../components/RechargeForm";
 import { cumulPeriode, derniersMois, orgCourante, rechargesDeCompteur, useStore, moisDe } from "../store/useStore";
-import { signaler } from "../components/erreur";
+import { demander, signaler, toast } from "../components/erreur";
 import { fmtF, fmtKwh, grilleEnVigueur, montantPourKwh, resteAvantTranche } from "../lib/tarif";
 import { LIBELLE_REGLE, occupantDuLot } from "../lib/repartition";
 import type { RegleRepartition } from "../types";
@@ -43,6 +43,9 @@ export default function CompteurDetail() {
         <Stat label="Tranche actuelle" value={`T${reste.tranche}`} tone={reste.tranche === 1 ? "good" : reste.tranche === 2 ? "warn" : "bad"} hint={reste.kwhRestants !== null ? `${fmtKwh(reste.kwhRestants)} avant T${reste.tranche + 1}` : "tranche maximale"} />
         <Stat label="Dernière recharge" value={recharges[0] ? fmtF(recharges[0].montant) : "—"} hint={recharges[0] ? fmtDate(recharges[0].date) : "jamais"} />
         <Stat label="12 mois" value={fmtF(recharges.reduce((a, r) => a + r.montant, 0))} hint={fmtKwh(recharges.reduce((a, r) => a + r.kwh, 0))} />
+        {c.prevision && c.prevision.joursRestants != null && (
+          <Stat label="Prévision de coupure" value={c.prevision.joursRestants === 0 ? "aujourd'hui" : `≈ ${c.prevision.joursRestants} j`} tone={c.prevision.joursRestants <= 2 ? "bad" : c.prevision.joursRestants <= 5 ? "warn" : "good"} hint={`solde estimé ${c.prevision.soldeEstime} kWh · ${c.prevision.kwhParJour} kWh/jour · prévoir ${c.prevision.kwhPourFinDeMois} kWh d'ici la fin du mois`} />
+        )}
       </div>
 
       <div className="rounded-xl bg-brand-50 border border-brand-100 text-brand-900 text-sm px-4 py-3 mb-6">💡 {conseil}</div>
@@ -107,7 +110,7 @@ export default function CompteurDetail() {
                   <td className="td"><Badge tone={r.trancheAtteinte === 1 ? "green" : r.trancheAtteinte === 2 ? "amber" : "red"}>T{r.trancheAtteinte}</Badge></td>
                   <td className="td"><Badge tone={r.canal === "sms" ? "teal" : "slate"}>{r.canal}</Badge></td>
                   <td className="td text-xs font-mono text-slate-500">{r.referencePaiement ?? ""}</td>
-                  <td className="td text-right"><button className="btn-ghost p-1 text-slate-400 hover:text-red-600" title="Annuler" onClick={() => { const m = prompt("Motif d'annulation (les quotes-parts déjà payées sont conservées) :"); if (m) s.annulerRecharge(r.id, m).catch(signaler); }}><Trash2 size={14} /></button></td>
+                  <td className="td text-right"><button className="btn-ghost p-1 text-slate-400 hover:text-red-600" title="Annuler" onClick={async () => { const m = await demander("Annuler cette recharge", { texte: "Les quotes-parts non payées seront annulées ; celles déjà payées sont conservées.", placeholder: "Motif de l'annulation", confirmer: "Annuler la recharge" }); if (m && m.trim().length >= 3) s.annulerRecharge(r.id, m).then(() => toast("Recharge annulée", "succes"), signaler); else if (m !== null) toast("Indiquez un motif (3 caractères minimum)", "erreur"); }}><Trash2 size={14} /></button></td>
                 </tr>
               ))}
             </tbody>

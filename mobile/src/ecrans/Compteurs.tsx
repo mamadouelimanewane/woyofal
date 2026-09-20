@@ -50,6 +50,11 @@ export default function Compteurs({ navigation }: any) {
                   <View style={{ alignItems: "flex-end" }}><Text style={{ color: C.gris, fontSize: 11 }}>Dernière recharge</Text><Text style={{ fontWeight: "600", color: jours != null && jours > 12 ? C.rouge : C.texte }}>{jours == null ? "—" : jours === 0 ? "aujourd'hui" : `il y a ${jours} j`}</Text></View>
                 </View>
                 {tr && tr.reste > 0 && <Text style={{ color: C.teal, fontSize: 12, marginTop: 6 }}>Encore {Math.round(tr.reste)} kWh en {tr.t} ce mois</Text>}
+                {c.prevision && c.prevision.joursRestants != null && (
+                  <Text style={{ color: c.prevision.joursRestants <= 2 ? C.rouge : c.prevision.joursRestants <= 5 ? C.ambre : C.gris, fontSize: 12, marginTop: 4, fontWeight: c.prevision.joursRestants <= 2 ? "700" : "400" }}>
+                    {c.prevision.joursRestants === 0 ? "Coupure probable aujourd'hui" : `Solde estimé ${c.prevision.soldeEstime} kWh · ≈ ${c.prevision.joursRestants} j restants`} · {c.prevision.kwhParJour} kWh/j
+                  </Text>
+                )}
               </Carte>
             </Pressable>
           );

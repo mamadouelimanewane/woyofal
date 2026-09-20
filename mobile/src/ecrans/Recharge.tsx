@@ -4,6 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import { Badge, Bouton, C, Carte, Champ, Ecran, Libelle, Titre } from "../ui";
 import { fmtF, useStore } from "../store";
 import { parserSms, type SmsParse } from "../sms";
+import { photographierEtLire } from "../ocr";
 
 /**
  * Enregistrer une recharge : collage du SMS (ou détection automatique du presse-papiers),
@@ -21,6 +22,24 @@ export default function Recharge({ route, navigation }: any) {
   const [analyse, setAnalyse] = useState<SmsParse | null>(null);
   const [occupe, setOccupe] = useState(false);
   const [filtre, setFiltre] = useState("");
+  const [ocr, setOcr] = useState(false);
+
+  async function lireTicket(source: "camera" | "galerie") {
+    setOcr(true);
+    try {
+      const r = await photographierEtLire("ticket", source);
+      if (!r) return;
+      if (r.montant) setMontant(String(Math.round(r.montant)));
+      if (r.kwh) setKwhTicket(String(r.kwh));
+      if (r.code) setCode(r.code);
+      if (r.compteurId) setCompteurId(r.compteurId);
+      setCanal("manuel");
+      setAnalyse({ operateur: "senelec", montant: r.montant, compteur: r.compteur, kwh: r.kwh, codes: r.code ? [r.code] : [], brut: r.texte });
+      Alert.alert("Ticket lu", `${r.moteur} · confiance ${Math.round(r.confiance * 100)} %${r.compteur && !r.compteurId ? `\nCompteur ${r.compteur} inconnu dans votre parc` : ""}\nVérifiez les valeurs avant d'enregistrer.`);
+    } catch (e: any) {
+      Alert.alert("Lecture impossible", e?.message ?? "Erreur");
+    } finally { setOcr(false); }
+  }
 
   useEffect(() => { if (route?.params?.compteurId) setCompteurId(route.params.compteurId); }, [route?.params?.compteurId]);
 
@@ -96,6 +115,15 @@ export default function Recharge({ route, navigation }: any) {
               {analyse.kwh ? <Badge texte={`${analyse.kwh} kWh`} ton="gris" /> : null}
             </View>
           )}
+        </Carte>
+
+        <Carte>
+          <Text style={{ fontWeight: "700", color: C.texte }}>Ou photographier le ticket</Text>
+          <Text style={{ color: C.gris, fontSize: 12, marginBottom: 4 }}>Ticket de boutique ou d'agence Senelec, écran de confirmation : les valeurs sont lues et proposées.</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 1 }}><Bouton titre="Appareil photo" occupe={ocr} onPress={() => lireTicket("camera")} /></View>
+            <View style={{ flex: 1 }}><Bouton titre="Galerie" variante="secondaire" disabled={ocr} onPress={() => lireTicket("galerie")} /></View>
+          </View>
         </Carte>
 
         <Carte>

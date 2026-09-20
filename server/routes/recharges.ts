@@ -11,7 +11,9 @@ import { lienPayerOccupant } from "../lib/paiement.js";
 import { analyserSms, calculerPourCompteur, cumulPeriode, repartirRecharge } from "../lib/tarif-service.js";
 import { introuvable, invalide, num, uid } from "../lib/util.js";
 import { resteAvantTranche } from "../../src/lib/tarif.js";
+import { prevoir } from "../../src/lib/prevision.js";
 import type { Db } from "../db/index.js";
+import { analyserImage } from "../lib/ocr.js";
 
 const r = new Hono<Vars>();
 
@@ -127,6 +129,19 @@ r.post("/recharges/parse", roles(...TOUS), async (c) => {
   return c.json({ ...analyse, compteurId: cpt?.id ?? null });
 });
 
+/** OCR d'un ticket Woyofal ou d'un afficheur de sous-compteur (EF-RECH-11). Résultat proposé, jamais enregistré directement. */
+r.post("/recharges/ocr", roles(...TOUS), async (c) => {
+  const b = z.object({ image: z.string().min(100), mediaType: z.string().default("image/jpeg"), mode: z.enum(["ticket", "index"]).default("ticket") }).parse(await c.req.json());
+  const base64 = b.image.replace(/^data:[^;]+;base64,/, "");
+  try {
+    const r = await analyserImage(base64, b.mediaType, b.mode);
+    const [cpt] = r.compteur ? await c.get("db").select({ id: compteurs.id }).from(compteurs).where(and(eq(compteurs.organisationId, c.get("orgId")), eq(compteurs.numero, r.compteur))) : [];
+    return c.json({ ...r, compteurId: cpt?.id ?? null });
+  } catch (e: any) {
+    return c.json({ erreur: `Lecture impossible : ${e?.message ?? e}` }, 422);
+  }
+});
+
 r.get("/recharges", roles(...TOUS), async (c) => {
   const q = c.req.query();
   const db = c.get("db");
@@ -181,7 +196,9 @@ r.get("/compteurs/:id/mois/:mois", roles(...TOUS), async (c) => {
   const cumul = await cumulPeriode(db, cpt.id, `${mois}-15T12:00:00Z`);
   const conseil = resteAvantTranche(cumul.kwh, cumul.grille);
   const rows = await db.select().from(recharges).where(and(eq(recharges.compteurId, cpt.id), eq(recharges.periode, cumul.periode), eq(recharges.statut, "valide"))).orderBy(desc(recharges.date));
-  return c.json({ compteur: cpt, periode: cumul.periode, kwh: Math.round(cumul.kwh * 100) / 100, montant: cumul.montant, nb: cumul.nb, coutMoyenKwh: cumul.kwh ? Math.round(cumul.montant / cumul.kwh) : null, tranche: conseil.tranche, kwhRestantsAvantTrancheSuivante: conseil.kwhRestants, grille: cumul.grille.libelle, recharges: rows.map((x) => ({ ...x, kwh: num(x.kwh) })) });
+  const historique = await db.select({ date: recharges.date, kwh: recharges.kwh }).from(recharges).where(and(eq(recharges.compteurId, cpt.id), eq(recharges.statut, "valide"))).orderBy(desc(recharges.date)).limit(40);
+  const prevision = prevoir(historique.map((h) => ({ date: h.date, kwh: num(h.kwh) })));
+  return c.json({ compteur: cpt, periode: cumul.periode, prevision, kwh: Math.round(cumul.kwh * 100) / 100, montant: cumul.montant, nb: cumul.nb, coutMoyenKwh: cumul.kwh ? Math.round(cumul.montant / cumul.kwh) : null, tranche: conseil.tranche, kwhRestantsAvantTrancheSuivante: conseil.kwhRestants, grille: cumul.grille.libelle, recharges: rows.map((x) => ({ ...x, kwh: num(x.kwh) })) });
 });
 
 // ---------- SMS en attente de rattachement (EF-RECH-05) ----------

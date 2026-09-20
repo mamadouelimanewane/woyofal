@@ -3,7 +3,7 @@ import { Copy, CreditCard, KeyRound, RefreshCw, UserPlus } from "lucide-react";
 import { Badge, Card, Field, Modal, PageTitle } from "../components/ui";
 import { compteursDeOrg, orgCourante, sitesDeOrg, userCourant, useStore } from "../store/useStore";
 import { api } from "../api/client";
-import { signaler } from "../components/erreur";
+import { confirmer, signaler, toast } from "../components/erreur";
 
 const PLAN: Record<string, string> = { gratuit: "Gratuit — jusqu'à 5 compteurs", starter: "Starter — 10 000 F/mois", immo: "Immo — 600 F/compteur/mois", entreprise: "Entreprise — 3 000 F/site/mois", groupe: "Groupe — sur devis" };
 const ROLE: Record<string, string> = { admin: "Administrateur", gestionnaire: "Gestionnaire", agent: "Agent de site", lecture: "Lecture seule" };
@@ -61,7 +61,7 @@ export default function Parametres() {
               <KeyRound size={16} className="text-slate-400" />
               <code className="font-mono text-sm bg-slate-100 rounded px-2 py-1 select-all">{cleApi ?? "…"}</code>
               <button className="btn-ghost" title="Copier" onClick={() => cleApi && navigator.clipboard?.writeText(cleApi)}><Copy size={16} /></button>
-              <button className="btn-ghost" title="Régénérer (l'ancienne clé cesse de fonctionner)" onClick={() => confirm("Régénérer la clé ? L'ancienne cessera de fonctionner immédiatement.") && api("/organisations/me/cle-api", { body: {} }).then((r) => setCleApi(r.cleApi), signaler)}><RefreshCw size={16} /></button>
+              <button className="btn-ghost" title="Régénérer (l'ancienne clé cesse de fonctionner)" onClick={async () => { if (await confirmer("Régénérer la clé d'organisation ?", "L'ancienne clé cessera de fonctionner immédiatement : les applications de transfert de SMS devront être reconfigurées.", { confirmer: "Régénérer" })) api("/organisations/me/cle-api", { body: {} }).then((r) => { setCleApi(r.cleApi); toast("Nouvelle clé générée", "succes"); }, signaler); }}><RefreshCw size={16} /></button>
             </div>
           </Card>
         )}

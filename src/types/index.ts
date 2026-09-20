@@ -5,7 +5,7 @@ export type StatutCompteur = "actif" | "resilie";
 export type CanalRecharge = "sms" | "ocr" | "manuel" | "api";
 export type StatutQuotePart = "due" | "payee" | "annulee";
 export type RegleRepartition = "egal" | "surface" | "sous_compteur" | "forfait";
-export type TypeAlerte = "budget_80" | "budget_100" | "inactif" | "anomalie" | "redevance";
+export type TypeAlerte = "budget_80" | "budget_100" | "inactif" | "anomalie" | "redevance" | "solde_faible" | "incident";
 
 export interface Organisation {
   id: string;
@@ -54,6 +54,8 @@ export interface Compteur {
   puissanceKva?: number;
   statut: StatutCompteur;
   partage: boolean;
+  /** Prévision calculée par le serveur (null sans historique). */
+  prevision?: { kwhParJour: number; soldeEstime: number; joursRestants: number | null; dateZero: string | null; nbRecharges: number; kwhPourFinDeMois: number } | null;
 }
 
 /** Rattachement N:N compteur ↔ lot, avec la règle de répartition portée par le compteur. */

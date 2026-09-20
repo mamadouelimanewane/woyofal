@@ -5,7 +5,7 @@ import { Badge, Card, Empty, Field, Modal, PageTitle } from "../components/ui";
 import RechargeForm from "../components/RechargeForm";
 import ImportModal from "../components/ImportModal";
 import CarteSites from "../components/CarteSites";
-import { signaler } from "../components/erreur";
+import { signaler, toast } from "../components/erreur";
 import { compteursDeSite, cumulPeriode, depenseSiteMois, moisCourant, orgCourante, rechargesDeCompteur, sitesDeOrg, useStore } from "../store/useStore";
 import { fmtF, fmtKwh } from "../lib/tarif";
 import { occupantDuLot } from "../lib/repartition";
@@ -63,8 +63,8 @@ export default function Parc() {
                 action={
                   <div className="flex gap-2">
                     <button className="btn-secondary" title={site.geo ? `Position enregistrée (${site.geo.lat.toFixed(4)}, ${site.geo.lng.toFixed(4)}) — cliquer pour la remplacer par ma position` : "Enregistrer ma position GPS comme position du site"} onClick={() => {
-                      if (!navigator.geolocation) return alert("Géolocalisation indisponible sur cet appareil.");
-                      navigator.geolocation.getCurrentPosition((pos) => s.updateSite(site.id, { geo: { lat: pos.coords.latitude, lng: pos.coords.longitude } }).catch(signaler), () => alert("Position refusée ou indisponible."), { enableHighAccuracy: true, timeout: 10000 });
+                      if (!navigator.geolocation) return toast("Géolocalisation indisponible sur cet appareil.", "erreur");
+                      navigator.geolocation.getCurrentPosition((pos) => s.updateSite(site.id, { geo: { lat: pos.coords.latitude, lng: pos.coords.longitude } }).then(() => toast("Position du site enregistrée", "succes"), signaler), () => toast("Position refusée ou indisponible.", "erreur"), { enableHighAccuracy: true, timeout: 10000 });
                     }}><MapPin size={14} className={site.geo ? "text-emerald-600" : ""} /> {site.geo ? "Repositionner" : "Géolocaliser"}</button>
                     {immo && <button className="btn-secondary" onClick={() => setModal("lot")}><Plus size={14} /> Lot</button>}
                     <button className="btn-secondary" onClick={() => setModal("compteur")}><Plus size={14} /> Compteur</button>
@@ -92,7 +92,7 @@ export default function Parc() {
                           </td>
                           <td className="td text-slate-600 text-xs">{lots.length ? lots.join(", ") : <span className="text-slate-400">aucun</span>}</td>
                           <td className="td text-right"><div>{fmtKwh(cum.kwh)}</div><div className="text-xs text-slate-500">{fmtF(cum.montant)} · <Badge tone={cum.kwh <= 150 ? "green" : cum.kwh <= 250 ? "amber" : "red"}>T{cum.kwh <= 150 ? 1 : cum.kwh <= 250 ? 2 : 3}</Badge></div></td>
-                          <td className="td text-right text-xs text-slate-600">{der ? `${new Date(der.date).toLocaleDateString("fr-FR")} · ${fmtF(der.montant)}` : "—"}</td>
+                          <td className="td text-right text-xs text-slate-600">{der ? `${new Date(der.date).toLocaleDateString("fr-FR")} · ${fmtF(der.montant)}` : "—"}{c.prevision && c.prevision.joursRestants != null && <div className={c.prevision.joursRestants <= 2 ? "text-red-600 font-medium" : c.prevision.joursRestants <= 5 ? "text-amber-600" : "text-slate-400"}>{c.prevision.joursRestants === 0 ? "coupure probable aujourd'hui" : `≈ ${c.prevision.joursRestants} j restants`}</div>}</td>
                           <td className="td text-right"><button className="btn-ghost text-brand-700" onClick={() => setRecharge(c.id)}><Zap size={14} /> Recharger</button></td>
                         </tr>
                       );

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Building2, Gauge, LogOut, MessageSquareText, Plus, RefreshCw, Send, ShieldCheck } from "lucide-react";
 import { Badge, Card, Field, Modal, Stat } from "../components/ui";
 import { api } from "../api/client";
-import { signaler } from "../components/erreur";
+import { signaler, toast } from "../components/erreur";
 import { useStore } from "../store/useStore";
 import { fmtF } from "../lib/tarif";
 
@@ -136,7 +136,7 @@ export default function Admin() {
         )}
 
         {onglet === "envois" && (
-          <Card title="File de notifications (200 dernières)" action={<button className="btn-secondary" onClick={() => api("/admin/notifications/traiter", { body: {} }).then((r) => { alert(`Envoyées : ${r.envoyees} · échecs : ${r.echecs} · reportées : ${r.reportees}`); void charger(); }, signaler)}><Send size={16} /> Traiter la file</button>}>
+          <Card title="File de notifications (200 dernières)" action={<button className="btn-secondary" onClick={() => api("/admin/notifications/traiter", { body: {} }).then((r) => { toast(`Envoyées : ${r.envoyees} · échecs : ${r.echecs} · reportées : ${r.reportees}`, "succes"); void charger(); }, signaler)}><Send size={16} /> Traiter la file</button>}>
             <p className="text-xs text-slate-500 mb-3">Sans fournisseur configuré (WhatsApp Business, SMS, Resend), les messages restent « en attente ».</p>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -212,7 +212,7 @@ function PatternModal({ onClose }: { onClose: () => void }) {
       </div>
       <div className="flex justify-end gap-2 mt-5">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={f.regex.length < 5} onClick={() => { let champsMap; try { champsMap = JSON.parse(f.champsMap); } catch { return alert("JSON invalide"); } api("/admin/patterns-sms", { body: { ...f, champsMap } }).then(onClose, signaler); }}>Enregistrer</button>
+        <button className="btn-primary" disabled={f.regex.length < 5} onClick={() => { let champsMap; try { champsMap = JSON.parse(f.champsMap); } catch { return toast("JSON invalide", "erreur"); } api("/admin/patterns-sms", { body: { ...f, champsMap } }).then(onClose, signaler); }}>Enregistrer</button>
       </div>
     </Modal>
   );

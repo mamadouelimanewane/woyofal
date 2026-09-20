@@ -54,6 +54,21 @@ r.get("/public/occupants/:id", async (c) => {
   const ids = mesCompteurs.map((x) => x.c.id);
   const dernieres = ids.length ? await db.select().from(recharges).where(and(inArray(recharges.compteurId, ids), eq(recharges.statut, "valide"))).orderBy(desc(recharges.date)).limit(30) : [];
   const declarations = await db.select().from(smsEntrants).where(and(eq(smsEntrants.organisationId, o.organisationId), eq(smsEntrants.expediteur, `occupant:${o.id}`))).orderBy(desc(smsEntrants.recuLe)).limit(10);
+  // Tableau de bord : ma part par mois vs moyenne des autres lots du site (6 derniers mois), anonymisé
+  const lotsDuSite = await db.select({ id: lots.id }).from(lots).where(eq(lots.siteId, lot.siteId));
+  const depuis = new Date(); depuis.setUTCMonth(depuis.getUTCMonth() - 5, 1); depuis.setUTCHours(0, 0, 0, 0);
+  const partsSite = lotsDuSite.length ? await db.select({ lotId: quotesParts.lotId, montant: quotesParts.montant, date: recharges.date }).from(quotesParts).innerJoin(recharges, eq(recharges.id, quotesParts.rechargeId)).where(and(inArray(quotesParts.lotId, lotsDuSite.map((l) => l.id)), sql`${quotesParts.statut} <> 'annulee'`, sql`${recharges.date} >= ${depuis}`)) : [];
+  const consommation: { mois: string; maPart: number; moyenneAutresLots: number | null; nbLots: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - i);
+    const cle = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const duMois = partsSite.filter((x) => `${x.date.getUTCFullYear()}-${String(x.date.getUTCMonth() + 1).padStart(2, "0")}` === cle);
+    const maPart = duMois.filter((x) => x.lotId === o.lotId).reduce((a, x) => a + x.montant, 0);
+    const parLot = new Map<string, number>();
+    for (const x of duMois) if (x.lotId !== o.lotId) parLot.set(x.lotId, (parLot.get(x.lotId) ?? 0) + x.montant);
+    const autres = [...parLot.values()];
+    consommation.push({ mois: cle, maPart, moyenneAutresLots: autres.length ? Math.round(autres.reduce((a, b) => a + b, 0) / autres.length) : null, nbLots: autres.length });
+  }
   const ligne = (x: (typeof toutes)[number]) => ({ id: x.q.id, montant: x.q.montant, statut: x.q.statut, date: x.date, montantRecharge: x.montantRecharge, kwh: Number(x.kwh), compteur: x.compteur ?? x.numero, datePaiement: x.q.datePaiement, moyen: x.q.moyenPaiement, quittanceNumero: x.q.quittanceNumero });
   return c.json({
     occupant: { nom: o.nom, lot: lot.reference, site: site.nom, dateEntree: o.dateEntree, dateSortie: o.dateSortie, caution: o.caution, consentementNotifications: o.consentementNotifications },
@@ -64,6 +79,7 @@ r.get("/public/occupants/:id", async (c) => {
     paiements: paiements.map((p) => ({ id: p.id, date: p.date, montant: p.montant, moyen: p.moyen, quittanceNumero: p.quittanceNumero, quittanceUrl: p.quittanceUrl })),
     compteurs: mesCompteurs.map((x) => ({ id: x.c.id, numero: x.c.numero, libelle: x.c.libelle, partage: x.c.partage, regle: x.c.regleRepartition, recharges: dernieres.filter((r) => r.compteurId === x.c.id).slice(0, 10).map((r) => ({ id: r.id, date: r.date, montant: r.montant, kwh: Number(r.kwh), maPart: toutes.find((t) => t.q.rechargeId === r.id)?.q.montant ?? null })) })),
     declarations: declarations.map((d) => ({ id: d.id, date: d.recuLe, statut: d.statut, analyse: d.analyse })),
+    consommation,
     moyens: moyensDisponibles(),
     paiementEnCours: enCours[0]?.id ?? null,
   });

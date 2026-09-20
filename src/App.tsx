@@ -16,9 +16,14 @@ import Payer, { PaiementRetour } from "./pages/Payer";
 import Rapports from "./pages/Rapports";
 import Groupe from "./pages/Groupe";
 import Admin from "./pages/Admin";
+import Toasts from "./components/Toasts";
 import { orgCourante, useStore } from "./store/useStore";
 
 export default function App() {
+  return <><Toasts /><Racine /></>;
+}
+
+function Racine() {
   const s = useStore();
   const org = orgCourante(s);
   useEffect(() => { void s.demarrer(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
