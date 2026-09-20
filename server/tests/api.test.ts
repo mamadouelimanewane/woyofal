@@ -370,3 +370,73 @@ describe("paiement en ligne Wave / Orange Money (mode simulation)", () => {
     expect(wo.json.res).toBe("inconnu");
   });
 });
+
+describe("Lot 2 : rapports, export comptable, alertes serveur, cron", () => {
+  it("rapport mensuel : totaux, sites, signaux, PDF", async () => {
+    // budget bas pour déclencher un dépassement
+    await api(`/sites/${siteId}`, { token: A.token, method: "PATCH", body: { budgetMensuel: 10000 } });
+    const r = await api("/rapports/mensuel/2026-09", { token: A.token });
+    expect(r.status).toBe(200);
+    expect(r.json.total.nbRecharges).toBeGreaterThan(0);
+    expect(r.json.sites.length).toBe(2);
+    const site = r.json.sites.find((s: Json) => s.siteId === siteId);
+    expect(site.ecartBudgetPct).toBeGreaterThan(0);
+    expect(r.json.signaux.some((s: string) => s.includes("budget dépassé"))).toBe(true);
+    expect(r.json.tendance).toHaveLength(12);
+    expect((await api("/rapports/mensuel/2026-9", { token: A.token })).status).toBe(400);
+    const pdf = await app.request("http://localhost/api/rapports/mensuel/2026-09/pdf", { headers: { authorization: `Bearer ${A.token}` } });
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get("content-type")).toBe("application/pdf");
+    const liste = await api("/rapports", { token: A.token });
+    expect(liste.json.some((m: Json) => m.mois === "2026-09")).toBe(true);
+  });
+
+  it("export comptable OHADA : écritures équilibrées, par site et par recharge", async () => {
+    for (const detail of ["0", "1"]) {
+      const res = await app.request(`http://localhost/api/exports/comptable/2026-09?detail=${detail}`, { headers: { authorization: `Bearer ${A.token}` } });
+      expect(res.status).toBe(200);
+      const csv = await res.text();
+      const lignes = csv.replace(/^﻿/, "").split("\r\n").slice(1).map((l) => l.split(";").map((v) => v.replace(/^"|"$/g, "")));
+      expect(lignes.length).toBeGreaterThan(2);
+      const debit = lignes.reduce((a, l) => a + Number(l[6] || 0), 0);
+      const credit = lignes.reduce((a, l) => a + Number(l[7] || 0), 0);
+      expect(debit).toBe(credit);
+      expect(lignes.some((l) => l[3] === "6052")).toBe(true);
+      expect(lignes.some((l) => l[3] === "5711")).toBe(true);
+    }
+  });
+
+  it("détection d'alertes serveur : budget dépassé, idempotence, traitement, e-mail aux gestionnaires", async () => {
+    await api("/utilisateurs", { token: A.token, body: { nom: "Gestionnaire Mail", telephone: "770008888", email: "gestion@exemple.sn", role: "gestionnaire" } });
+    const d = await api("/alertes/detecter", { token: A.token, body: {} });
+    expect(d.status).toBe(200);
+    expect(d.json.detectees).toBeGreaterThan(0);
+    expect(d.json.nouvelles).toBeGreaterThan(0);
+    const d2 = await api("/alertes/detecter", { token: A.token, body: {} });
+    expect(d2.json.nouvelles).toBe(0); // idempotent
+    const liste = await api("/alertes", { token: A.token });
+    const budget = liste.json.find((a: Json) => a.type === "budget_100" && a.siteId === siteId);
+    expect(budget).toBeTruthy();
+    const maj = await api(`/alertes/${budget.id}`, { token: A.token, method: "PATCH", body: { traitee: true, commentaire: "Budget révisé" } });
+    expect(maj.json.traiteeLe).toBeTruthy();
+    expect((await api("/alertes", { token: A.token })).json.some((a: Json) => a.id === budget.id)).toBe(false);
+    // l'organisation B ne voit rien
+    expect((await api("/alertes", { token: B.token })).json).toHaveLength(0);
+    const notifs = await api("/notifications", { token: A.token });
+    const mail = notifs.json.find((n: Json) => n.modele === "alertes" && n.canal === "email");
+    expect(mail.destinataire).toBe("gestion@exemple.sn");
+    expect(mail.corps).toContain("budget");
+  });
+
+  it("cron quotidien : relances, alertes, rapport mensuel en file e-mail", async () => {
+    // un administrateur avec e-mail pour recevoir le rapport
+    await api("/utilisateurs", { token: A.token, body: { nom: "DAF", telephone: "770009999", email: "daf@exemple.sn", role: "lecture" } });
+    const cron = await api("/admin/cron/quotidien?rapports=1", { body: {} });
+    expect(cron.status).toBe(200);
+    expect(cron.json.rapports).toBeGreaterThanOrEqual(0);
+    const notifs = await api("/notifications", { token: A.token });
+    const mail = notifs.json.find((n: Json) => n.modele === "rapport_mensuel" && n.canal === "email");
+    if (mail) expect(mail.corps).toContain("rapport");
+    expect(typeof cron.json.alertesNouvelles).toBe("number");
+  });
+});

@@ -10,6 +10,10 @@ import { traiterFile } from "../lib/notifications.js";
 import { analyserSms, grilles } from "../lib/tarif-service.js";
 import { uid } from "../lib/util.js";
 import { relancer } from "./occupants.js";
+import { detecterAlertes, enregistrerAlertes } from "../lib/alertes.js";
+import { libelleMois, rapportMensuel } from "../lib/rapport.js";
+import { notifier } from "../lib/notifications.js";
+import { urlPublique } from "../lib/util.js";
 import { randomBytes } from "node:crypto";
 
 const r = new Hono<Vars>();
@@ -21,11 +25,35 @@ r.post("/cron/quotidien", async (c) => {
   const db = c.get("db");
   const orgs = await db.select({ id: organisations.id }).from(organisations).where(sql`${organisations.statut} in ('actif', 'essai')`);
   let relances = 0;
-  for (const o of orgs) relances += await relancer(db, o.id);
+  let alertesNouvelles = 0;
+  let rapports = 0;
+  const aujourdHui = new Date();
+  const premierDuMois = aujourdHui.getUTCDate() === 1 || c.req.query("rapports") === "1";
+  for (const o of orgs) {
+    relances += await relancer(db, o.id);
+    alertesNouvelles += await enregistrerAlertes(db, o.id, await detecterAlertes(db, o.id));
+    // EF-BI-03 : rapport du mois écoulé envoyé le 1er aux administrateurs et gestionnaires disposant d'un e-mail
+    if (premierDuMois) {
+      const m = new Date(Date.UTC(aujourdHui.getUTCFullYear(), aujourdHui.getUTCMonth() - 1, 1));
+      const mois = `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, "0")}`;
+      const rap = await rapportMensuel(db, o.id, mois);
+      if (rap.total.nbRecharges > 0) {
+        const dest = await db.select().from(utilisateurs).where(sql`${utilisateurs.organisationId} = ${o.id} and ${utilisateurs.actif} and ${utilisateurs.role} in ('admin', 'gestionnaire', 'lecture') and ${utilisateurs.email} is not null`);
+        const lignes = [
+          `${rap.organisation.nom} — rapport ${libelleMois(mois)}`,
+          `Dépense : ${rap.total.depense.toLocaleString("fr-FR")} F · ${rap.total.kwh.toLocaleString("fr-FR")} kWh · ${rap.total.nbRecharges} recharges${rap.total.variationPct != null ? ` · ${rap.total.variationPct > 0 ? "+" : ""}${rap.total.variationPct} % vs mois précédent` : ""}`,
+          ...(rap.signaux.length ? ["Points d'attention :", ...rap.signaux.map((x) => `• ${x}`)] : []),
+          `Rapport complet : ${urlPublique()}/rapports?mois=${mois}`,
+        ];
+        const corps = lignes.join("\n");
+        for (const u of dest) { await notifier(db, { organisationId: o.id, destinataire: u.email!, modele: "rapport_mensuel", corps, canal: "email" }); rapports++; }
+      }
+    }
+  }
   const file = await traiterFile(db, 500);
   // EF-ABO-02/04 : fin d'essai + 15 j sans paiement → lecture seule (les données restent)
   await db.update(organisations).set({ statut: "lecture_seule", modifieLe: new Date() }).where(sql`${organisations.statut} = 'essai' and ${organisations.finEssai} < now() - interval '15 days'`);
-  return c.json({ relances, file });
+  return c.json({ relances, alertesNouvelles, rapports, file });
 });
 
 r.use(authentifie, roles());

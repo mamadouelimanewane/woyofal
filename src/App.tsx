@@ -13,6 +13,7 @@ import Alertes from "./pages/Alertes";
 import Grille from "./pages/Grille";
 import Parametres from "./pages/Parametres";
 import Payer, { PaiementRetour } from "./pages/Payer";
+import Rapports from "./pages/Rapports";
 import { orgCourante, useStore } from "./store/useStore";
 
 export default function App() {
@@ -64,6 +65,7 @@ export default function App() {
         {org.type === "immo" && <Route path="/occupants" element={<Occupants />} />}
         {org.type === "immo" && <Route path="/recouvrement" element={<Recouvrement />} />}
         <Route path="/alertes" element={<Alertes />} />
+        <Route path="/rapports" element={<Rapports />} />
         <Route path="/grille" element={<Grille />} />
         <Route path="/parametres" element={<Parametres />} />
         <Route path="*" element={<Navigate to="/" replace />} />

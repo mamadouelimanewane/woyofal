@@ -63,7 +63,12 @@ DATABASE_URL=postgres://… npm run db:seed      # (optionnel) démo sur Neon
 | `GET /api/recouvrement` · `POST /api/relances/envoyer` | relances |
 | `GET /api/grille` · `POST /api/grille/simuler` | public |
 | `/api/admin/*` | super-admin : organisations, grille, patterns SMS, stats de parsing |
-| `POST /api/admin/cron/quotidien` | cron Vercel (8 h) : relances J+3/7/15, file de notifications, fin d'essai |
+| `GET /api/rapports` · `/rapports/mensuel/:aaaa-mm` · `/pdf` · `GET /api/exports/comptable/:aaaa-mm` | rapports et export comptable |
+| `GET /api/alertes` · `POST /api/alertes/detecter` · `PATCH /api/alertes/:id` | alertes persistées |
+| `GET /api/abonnement` · `POST /api/abonnement/payer` | abonnement Wave / OM |
+| `GET /api/public/occupants/:id?t=` · `POST …/payer` · `GET /api/public/paiements/:id` | paiement occupant (liens signés) |
+| `POST /api/webhooks/wave` · `/orange` | webhooks fournisseurs |
+| `POST /api/admin/cron/quotidien` | cron Vercel (8 h) : relances J+3/7/15, détection d'alertes, rapport mensuel le 1er, file de notifications, fin d'essai |
 
 ## État
 
@@ -76,5 +81,14 @@ DATABASE_URL=postgres://… npm run db:seed      # (optionnel) démo sur Neon
 | Quotes-parts, paiements, quittances numérotées, sortie d'occupant | ✅ |
 | Relances (file WhatsApp → SMS), cron quotidien | ✅ (envoi réel dès que les clés sont configurées) |
 | Abonnement : plans, essai 30 j, lecture seule | ✅ base — facturation VersusPay à venir |
-| Quittance PDF, import Excel côté client, page SMS en attente | ⏳ semaine 4–5 |
-| Déploiement Neon + Vercel | ⏳ en attente de la base |
+| Quittance PDF (URL signée), import Excel, SMS en attente | ✅ |
+| Paiement en ligne Wave / Orange Money (quotes-parts + abonnement), webhooks | ✅ en **mode simulation** tant que les clés API ne sont pas configurées |
+| Déploiement Neon + Vercel | ✅ https://woyofal.vercel.app |
+
+| Lot 2 (Entreprise) | État |
+|---|---|
+| Rapport mensuel (JSON + PDF), tendance 12 mois, coût/m², signaux | ✅ |
+| Export comptable OHADA (6052 / 4452 / 5711), par site ou par recharge | ✅ |
+| Alertes serveur persistées (budget, inactivité, anomalie, redevance) + e-mail aux gestionnaires | ✅ (cron quotidien) |
+| Rapport automatique le 1er du mois par e-mail (Resend) | ✅ file d'envoi — clé `RESEND_API_KEY` à configurer |
+| Vue sites carte, comparaison entre sites comparables, consolidation groupe | ⏳ |

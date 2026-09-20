@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Bell, Building2, Gauge, LayoutDashboard, LogOut, Menu, Receipt, Settings, Store, Users, Wallet, Zap } from "lucide-react";
+import { BarChart3, Bell, Building2, Gauge, LayoutDashboard, LogOut, Menu, Receipt, Settings, Store, Users, Wallet, Zap } from "lucide-react";
 import { useState } from "react";
 import { alertesDeOrg, orgCourante, userCourant, useStore } from "../store/useStore";
 
@@ -26,6 +26,7 @@ export default function Layout() {
         ]
       : []),
     { to: "/alertes", label: "Alertes", icon: Bell, badge: nbAlertes },
+    { to: "/rapports", label: "Rapports", icon: BarChart3 },
     { to: "/grille", label: "Grille tarifaire", icon: Gauge },
     { to: "/parametres", label: "Paramètres", icon: Settings },
   ];
