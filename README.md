@@ -40,7 +40,11 @@ drizzle/                migrations SQL générées (drizzle-kit)
 
 ## Application mobile agent (mobile/)
 
-Expo (React Native) : `cd mobile && npm install && npx expo start` puis Expo Go. Compteurs et cumul du mois, recharge par collage / détection du SMS, relevés, file hors ligne synchronisée. Détails dans [mobile/README.md](mobile/README.md).
+Expo (React Native) : `cd mobile && npm install && npx expo start` puis Expo Go. Version web de test : https://kuran-agent.vercel.app (`npm run web:deploy` dans mobile/). Compteurs et cumul du mois, recharge par collage / détection du SMS, relevés, file hors ligne synchronisée. Détails dans [mobile/README.md](mobile/README.md).
+
+## Administration (super-admin)
+
+Console sur https://woyofal.vercel.app (onglet E-mail) : organisations, plans et statuts, grilles tarifaires, patterns SMS, file d'envoi. Création d'un compte : `DATABASE_URL=… npx tsx server/db/superadmin.ts <email> <téléphone>` (connexion par mot de passe uniquement tant qu'aucun fournisseur SMS n'est configuré).
 
 ## Kit pilote (docs/)
 
